@@ -21,6 +21,7 @@ struct KeycapSurface<KeyShape: Shape>: View {
             .overlay {
                 shape.stroke(borderColor, lineWidth: borderWidth)
             }
+            .transaction { $0.animation = nil }
             .allowsHitTesting(false)
     }
 

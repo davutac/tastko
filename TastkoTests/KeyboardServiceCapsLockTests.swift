@@ -103,7 +103,7 @@ extension KeyboardServiceTests {
         try service.toggleOneShotModifier(.leftShift)
         try await service.perform(.text("test"))
         try await service.perform(.keyStroke(KeyStroke(.space)))
-        try await service.releaseActiveOneShotModifiers()
+        service.releaseAllModifiers()
         #expect(service.isCapsLockEnabled)
         #expect(toggleCount == 1)
         #expect(
@@ -128,7 +128,7 @@ extension KeyboardServiceTests {
                 .key(.capsLock, [.shift], true), .key(.capsLock, [.shift], false),
             ]
         )
-        try await service.releaseActiveOneShotModifiers()
+        service.releaseAllModifiers()
         #expect(poster.events.last == .key(.leftShift, [], false))
     }
 

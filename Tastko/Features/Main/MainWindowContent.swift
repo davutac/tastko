@@ -185,8 +185,8 @@ struct MainWindowContent: View {
     }
 
     private func selectPanel(_ panel: PanelEditorPanel) {
+        keyboardService.releaseAllModifiers()
         selectedPanelIdentifier = panel.id
-        releaseActiveModifiers()
         floatingWindowController.updateSettings()
     }
 
@@ -207,12 +207,5 @@ struct MainWindowContent: View {
     private func reloadProfilesAndWindow() {
         reloadProfiles()
         floatingWindowController.updateSettings()
-    }
-
-    // MARK: - Keyboard
-    private func releaseActiveModifiers() {
-        Task {
-            try? await keyboardService.releaseActiveOneShotModifiers()
-        }
     }
 }

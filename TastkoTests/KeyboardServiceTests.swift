@@ -445,7 +445,7 @@ struct KeyboardServiceTests {
             ]
         )
         #expect(service.activeOneShotModifiers == [.leftShift])
-        try await service.releaseActiveOneShotModifiers()
+        service.releaseAllModifiers()
         #expect(
             poster.events == [
                 .key(.leftShift, [.shift], true),
@@ -456,19 +456,18 @@ struct KeyboardServiceTests {
         #expect(service.activeOneShotModifiers.isEmpty)
     }
 
-    @Test func releaseActiveOneShotModifiersPostsUpAndClearsVirtualState() async throws {
+    @Test func releaseAllModifiersPostsUpAndClearsVirtualState() async throws {
         let target = keyboardServiceTarget(route: .window)
         let resolver = FakeKeyboardTargetResolver(target: target)
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
         try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        let receipt = try await service.releaseActiveOneShotModifiers()
+        service.releaseAllModifiers()
 
         #expect(resolver.resolveCount == 0)
         #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
         #expect(service.activeOneShotModifiers.isEmpty)
-        #expect(receipt.method == .modifierState)
     }
 
     @Test func activeOneShotModifierSecondClickPostsUpAndUnlatches() async throws {

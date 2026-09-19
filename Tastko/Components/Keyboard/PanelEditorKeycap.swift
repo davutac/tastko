@@ -8,7 +8,6 @@ struct PanelEditorKeycap: View {
     let isPressed: Bool
     let isHovered: Bool
     let isActive: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Body
     var body: some View {
@@ -68,8 +67,7 @@ struct PanelEditorKeycap: View {
         .padding(max(1, KeyboardDesign.Metrics.keyInset * scale))
         .scaleEffect(isPressed ? 0.97 : 1)
         .offset(y: isPressed ? max(1, scale) : 0)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.1), value: isPressed)
-        .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: isActive)
+        .transaction { $0.animation = nil }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

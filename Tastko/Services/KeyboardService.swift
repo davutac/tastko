@@ -413,13 +413,18 @@ final class KeyboardService {
             .union(heldModifierFlags.subtracting(suppressed))
     }
 
-    // MARK: - Input Cleanup
-    func releaseAllModifiers() {
+    // MARK: - Held-Key Cancellation
+    func cancelKeyPresses() {
         inputSession = UUID()
         for token in Array(keyPresses.keys) {
             do { try endKeyPress(token) }
             catch { _ = recordFailure(error) }
         }
+    }
+
+    // MARK: - Input Cleanup
+    func releaseAllModifiers() {
+        cancelKeyPresses()
         do { try clearActiveOneShotModifiers() }
         catch { _ = recordFailure(error) }
         if let token = functionPress {
@@ -517,15 +522,6 @@ final class KeyboardService {
     @discardableResult
     func press(_ stroke: KeyStroke) async throws -> KeyboardDeliveryReceipt {
         try await press(stroke, consumesActiveOneShotModifiers: false)
-    }
-
-    @discardableResult
-    func releaseActiveOneShotModifiers() async throws -> KeyboardDeliveryReceipt {
-        do {
-            try clearActiveOneShotModifiers()
-            return recordSuccess(.modifierState(summary: "one-shot modifiers released"))
-        }
-        catch { throw recordFailure(error) }
     }
 
     @discardableResult

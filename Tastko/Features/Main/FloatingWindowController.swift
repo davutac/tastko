@@ -284,8 +284,8 @@ final class FloatingWindowController {
             return
         }
 
+        KeyboardService.shared.cancelKeyPresses()
         Defaults[.selectedPanelEditorPanelID] = panel.id
-        releaseActiveModifiers()
         updateSettings()
     }
 
@@ -326,13 +326,7 @@ final class FloatingWindowController {
         return panels.first { $0.id == selectedPanelID } ?? panels.first
     }
 
-    // MARK: - Keyboard
-    private func releaseActiveModifiers() {
-        Task {
-            try? await KeyboardService.shared.releaseActiveOneShotModifiers()
-        }
-    }
-
+    // MARK: - Minimized Configuration
     private func minimizedConfiguration() -> AlwaysOnTopWindowConfiguration {
         AlwaysOnTopWindowConfiguration(
             size: FloatingWindowDefaults.miniSize,

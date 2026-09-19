@@ -42,8 +42,8 @@ struct PanelEditorLayoutView: View {
         .onAppear {
             keyboardLanguageService.refreshSelectedLanguage()
         }
-        .onDisappear { keyboardService.releaseAllModifiers() }
-        .onChange(of: panel.id) { keyboardService.releaseAllModifiers() }
+        .onDisappear { keyboardService.cancelKeyPresses() }
+        .onChange(of: panel.id) { keyboardService.cancelKeyPresses() }
     }
 
     // MARK: - Metrics

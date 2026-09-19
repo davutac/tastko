@@ -44,7 +44,6 @@ private struct KeycapButtonContent: View {
     let fillsWidth: Bool
     let isExternallyPressed: Bool
     @State private var isHovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Interaction
     private var isPressed: Bool { configuration.isPressed || isExternallyPressed }
@@ -65,7 +64,7 @@ private struct KeycapButtonContent: View {
                 )
             }
             .scaleEffect(isPressed ? 0.97 : 1)
-            .animation(reduceMotion ? nil : .smooth(duration: 0.1), value: isPressed)
+            .transaction { $0.animation = nil }
             .contentShape(.rect)
             .onHover { isHovered = $0 }
     }

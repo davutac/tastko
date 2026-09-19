@@ -29,11 +29,11 @@ struct WordSuggestionButton: View {
                 )
             }
             .scaleEffect(pressedButton == .left ? 0.97 : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: pressedButton)
             .animation(
                 reduceMotion ? nil : .smooth(duration: 0.32),
                 value: service.typedPrefix
             )
+            .animation(nil, value: pressedButton)
             .overlay {
                 KeyMouseEventView(
                     pressedButton: $pressedButton,
