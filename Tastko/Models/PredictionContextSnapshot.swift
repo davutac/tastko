@@ -9,7 +9,8 @@ enum PredictionContextSnapshot {
         target: FocusedKeyboardTarget,
         value: FocusedTextValue,
         language: String,
-        isValueSettable: Bool
+        isValueSettable: Bool,
+        textForRange: (AccessibilityTextRange) -> String? = { _ in nil }
     ) {
         guard value.selectedText == nil, value.selectedRange?.isInsertionPoint != false else {
             self = .ineligible
@@ -25,10 +26,23 @@ enum PredictionContextSnapshot {
             self = .unreadable(target, selection: value.selectedRange)
             return
         }
-        guard let input = PredictionInput(text: text, range: range, language: language) else {
+        guard
+            let resolvedRange = PredictionTextCoordinates.selection(
+                in: text,
+                range: range,
+                textForRange: textForRange
+            ),
+            let input = PredictionInput(text: text, range: resolvedRange, language: language)
+        else {
             self = .ineligible
             return
         }
-        self = .readable(PredictionContext(target: target, value: value, input: input))
+        let resolvedValue = FocusedTextValue(
+            text: text,
+            selectedText: value.selectedText,
+            selectedRange: resolvedRange,
+            numberOfCharacters: value.numberOfCharacters
+        )
+        self = .readable(PredictionContext(target: target, value: resolvedValue, input: input))
     }
 }

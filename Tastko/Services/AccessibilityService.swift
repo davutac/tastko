@@ -367,7 +367,8 @@ final class AccessibilityService {
                 target: target,
                 value: textValue(for: element, includesText: isValueSettable),
                 language: language,
-                isValueSettable: isValueSettable
+                isValueSettable: isValueSettable,
+                textForRange: { self.string(for: $0, in: element) }
             )
         }
         else {
@@ -461,6 +462,22 @@ final class AccessibilityService {
         let number: NSNumber? = try? copyAttribute(attribute, from: element)
 
         return number?.intValue
+    }
+
+    // MARK: - Range-Based Accessibility Text
+    private func string(for range: AccessibilityTextRange, in element: AXUIElement) -> String? {
+        var range = CFRange(location: range.location, length: range.length)
+        guard let parameter = AXValueCreate(.cfRange, &range) else { return nil }
+        var value: CFTypeRef?
+        guard
+            AXUIElementCopyParameterizedAttributeValue(
+                element,
+                kAXStringForRangeParameterizedAttribute as CFString,
+                parameter,
+                &value
+            ) == .success
+        else { return nil }
+        return value as? String
     }
 
     private func rangeAttribute(_ attribute: CFString, from element: AXUIElement) -> CFRange? {
