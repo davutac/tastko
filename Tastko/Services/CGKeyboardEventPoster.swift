@@ -12,16 +12,16 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
         let up = try unicodeEvent(text, keyDown: false)
         down.flags = []
         up.flags = []
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
+        post(down, keyDown: true)
+        post(up, keyDown: false)
     }
 
     func postText(_ text: String, to target: FocusedKeyboardTarget) throws {
         let keyDown = try unicodeEvent(text, keyDown: true)
         let keyUp = try unicodeEvent(text, keyDown: false)
 
-        keyDown.postToPid(target.processIdentifier)
-        keyUp.postToPid(target.processIdentifier)
+        post(keyDown, keyDown: true, to: target.processIdentifier)
+        post(keyUp, keyDown: false, to: target.processIdentifier)
     }
 
     // MARK: - Prediction Replacement
@@ -49,7 +49,7 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
         }
         for event in events {
             event.flags = []
-            event.postToPid(target.processIdentifier)
+            post(event, keyDown: event.type == .keyDown, to: target.processIdentifier)
         }
     }
 
@@ -59,13 +59,29 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
         modifiers: KeyModifiers,
         keyDown: Bool
     ) throws {
-        try keyEvent(key, modifiers: modifiers, keyDown: keyDown).post(tap: .cghidEventTap)
+        post(try keyEvent(key, modifiers: modifiers, keyDown: keyDown), keyDown: keyDown)
     }
 
     // MARK: - Repeat Delivery
     func postKeyRepeat(_ key: Key, modifiers: KeyModifiers) throws {
-        try keyEvent(key, modifiers: modifiers, keyDown: true, isRepeat: true)
-            .post(tap: .cghidEventTap)
+        post(
+            try keyEvent(key, modifiers: modifiers, keyDown: true, isRepeat: true),
+            keyDown: true
+        )
+    }
+
+    // MARK: - Tracked Delivery
+    private func post(_ event: CGEvent, keyDown: Bool, to processIdentifier: pid_t? = nil) {
+        let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+        if let key = Key(rawValue: keyCode) {
+            PhysicalKeyboardState.shared.recordPostedKey(key, isDown: keyDown)
+        }
+        if let processIdentifier {
+            event.postToPid(processIdentifier)
+        }
+        else {
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     // MARK: - Key Events

@@ -33,6 +33,96 @@ struct PhysicalKeyboardStateTests {
         #expect(state.snapshot.pressedKeys.isEmpty)
     }
 
+    // MARK: - Synthetic Input Reconciliation
+    @Test func delayedSyntheticReleaseDoesNotClearANewerPostedPress() throws {
+        var hardware = PhysicalKeyboardSnapshot()
+        let state = PhysicalKeyboardState(readHardware: { hardware }, canObserve: { true })
+        state.recordPostedKey(.a, isDown: true)
+        state.recordPostedKey(.a, isDown: false)
+        state.recordPostedKey(.a, isDown: true)
+
+        // The previous click is observed before the system processes the next down.
+        state.receive(try syntheticEvent(.a, down: false))
+        state.refresh()
+        hardware.pressedKeys = [.a]
+        state.refresh()
+        #expect(state.snapshot.pressedKeys.isEmpty)
+    }
+
+    @Test(arguments: ModifierKey.allCases)
+    func postedModifiersStaySeparateAcrossRefreshAndReset(modifier: ModifierKey) {
+        var hardware = PhysicalKeyboardSnapshot()
+        let state = PhysicalKeyboardState(readHardware: { hardware }, canObserve: { true })
+        // Delivery registers the key before posting, including flagsChanged events.
+        state.recordPostedKey(modifier.key, isDown: true)
+        hardware.pressedKeys = [modifier.key, .a]
+        hardware.modifiers = [modifier]
+        state.refresh()
+        #expect(state.snapshot.pressedKeys == [.a])
+        #expect(state.snapshot.modifiers.isEmpty)
+
+        state.reset()
+        state.refresh()
+        #expect(state.snapshot.pressedKeys == [.a])
+        #expect(state.snapshot.modifiers.isEmpty)
+        state.recordPostedKey(modifier.key, isDown: false)
+        state.refresh()
+        #expect(state.snapshot.modifiers.isEmpty)
+
+        hardware.pressedKeys = [.a]
+        hardware.modifiers = []
+        state.refresh()
+        // Once delivery settles, hardware reconciliation works normally again.
+        hardware.pressedKeys.insert(modifier.key)
+        hardware.modifiers = [modifier]
+        state.refresh()
+        #expect(state.snapshot.modifiers == [modifier])
+    }
+
+    @Test func repeatedVirtualClicksNeverBecomePhysicalPressesDuringPolling() throws {
+        var hardware = PhysicalKeyboardSnapshot()
+        let state = PhysicalKeyboardState(readHardware: { hardware }, canObserve: { true })
+
+        for _ in 0..<4 {
+            let down = try syntheticEvent(.a, down: true)
+            let up = try syntheticEvent(.a, down: false)
+            state.receive(down)
+            hardware.pressedKeys = [.a]
+            state.refresh()
+            #expect(!state.snapshot.isPressed(.keyStroke(KeyStroke(.a))))
+
+            state.receive(up)
+            state.refresh()
+            #expect(!state.snapshot.isPressed(.keyStroke(KeyStroke(.a))))
+            hardware.pressedKeys = []
+            state.refresh()
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func physicalPressSurvivesOverlappingVirtualClicks(physicalPressFirst: Bool) throws {
+        var hardware = PhysicalKeyboardSnapshot()
+        let state = PhysicalKeyboardState(readHardware: { hardware }, canObserve: { true })
+        if physicalPressFirst {
+            hardware.pressedKeys = [.a]
+            state.receive(try event(.a, down: true))
+        }
+        state.receive(try syntheticEvent(.a, down: true))
+        if !physicalPressFirst {
+            hardware.pressedKeys = [.a]
+            state.receive(try event(.a, down: true))
+        }
+        state.refresh()
+        #expect(state.snapshot.pressedKeys == [.a])
+
+        state.receive(try syntheticEvent(.a, down: false))
+        state.refresh()
+        #expect(state.snapshot.pressedKeys == [.a])
+        state.receive(try event(.a, down: false))
+        state.refresh()
+        #expect(state.snapshot.pressedKeys.isEmpty)
+    }
+
     @Test func matchesPlainKeysAndCompleteShortcutChords() {
         let snapshot = PhysicalKeyboardSnapshot(pressedKeys: [.c], modifiers: [.rightCommand])
         #expect(snapshot.isPressed(.keyStroke(KeyStroke(.c))))
@@ -182,6 +272,12 @@ struct PhysicalKeyboardStateTests {
     }
 
     // MARK: - Fixtures
+    private func syntheticEvent(_ key: Key, down: Bool) throws -> NSEvent {
+        try #require(
+            NSEvent(cgEvent: CGKeyboardEventPoster().keyEvent(key, modifiers: [], keyDown: down))
+        )
+    }
+
     private func event(_ key: Key, down: Bool, repeating: Bool = false) throws -> NSEvent {
         try #require(
             NSEvent.keyEvent(

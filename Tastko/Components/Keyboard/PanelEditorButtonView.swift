@@ -251,6 +251,7 @@ struct PanelEditorButtonView: View {
             repeatTask = Task {
                 try? await Task.sleep(for: .milliseconds(350))
                 while !Task.isCancelled, keyboardService.inputSession == inputSession {
+                    soundService.play(.keyPress)
                     do {
                         try keyboardService.repeatKeyPress(
                             token,
@@ -274,6 +275,7 @@ struct PanelEditorButtonView: View {
                 _ = try? await keyboardService.perform(.text(text))
                 try? await Task.sleep(for: .milliseconds(350))
                 while !Task.isCancelled, keyboardService.inputSession == inputSession {
+                    soundService.play(.keyPress)
                     _ = try? await keyboardService.type(text)
                     try? await Task.sleep(for: .milliseconds(60))
                 }

@@ -17,6 +17,9 @@ final class PhysicalKeyboardState {
     @ObservationIgnored private let readHardware: () -> PhysicalKeyboardSnapshot
     @ObservationIgnored private let canObserve: () -> Bool
     @ObservationIgnored private var isRunning = false
+    @ObservationIgnored private var syntheticKeys: Set<Key> = []
+    @ObservationIgnored private var syntheticKeysDown: Set<Key> = []
+    @ObservationIgnored private var overlappingPhysicalKeys: Set<Key> = []
 
     // MARK: - Initialization
     init(
@@ -85,6 +88,7 @@ final class PhysicalKeyboardState {
     func reset() {
         snapshot = PhysicalKeyboardSnapshot()
         controlDates.removeAll()
+        overlappingPhysicalKeys.removeAll()
     }
 
     func refresh() {
@@ -101,7 +105,7 @@ final class PhysicalKeyboardState {
                 MainActor.assumeIsolated { self?.receive(event) }
             }
         }
-        var current = readHardware()
+        var current = filteringSyntheticKeys(from: readHardware())
         controlDates = controlDates.filter { Date().timeIntervalSince($0.value) < 2 }
         current.pressedControls = Set(controlDates.keys)
         if current != snapshot { snapshot = current }
@@ -109,20 +113,32 @@ final class PhysicalKeyboardState {
 
     // MARK: - Events
     func receive(_ event: NSEvent) {
-        guard
-            event.cgEvent?.getIntegerValueField(.eventSourceUserData)
-                != CGKeyboardEventPoster.predictionEventTag
-        else { return }
         guard canObserve() else {
             reset()
+            return
+        }
+        if event.cgEvent?.getIntegerValueField(.eventSourceUserData)
+            == CGKeyboardEventPoster.predictionEventTag
+        {
+            if event.type == .keyDown || event.type == .keyUp,
+                let key = Key(rawValue: event.keyCode)
+            {
+                // Observed events can lag behind a newer posted press.
+                maskSyntheticKey(key)
+            }
             return
         }
         switch event.type {
         case .keyDown, .keyUp:
             guard let key = Key(rawValue: event.keyCode) else { return }
+            recordPhysicalKey(key, isDown: event.type == .keyDown)
             snapshot.setKey(key, isDown: event.type == .keyDown)
         case .flagsChanged:
-            let hardware = readHardware()
+            let rawHardware = readHardware()
+            if let key = Key(rawValue: event.keyCode) {
+                recordPhysicalKey(key, isDown: rawHardware.pressedKeys.contains(key))
+            }
+            let hardware = filteringSyntheticKeys(from: rawHardware)
             snapshot.modifiers = hardware.modifiers
             snapshot.isCapsLockEnabled = hardware.isCapsLockEnabled
             for key in ModifierKey.allCases.map(\.key) + [.capsLock] {
@@ -144,6 +160,54 @@ final class PhysicalKeyboardState {
         default:
             break
         }
+    }
+
+    // MARK: - Synthetic Input
+    func recordPostedKey(_ key: Key, isDown: Bool) {
+        maskSyntheticKey(key)
+        if isDown {
+            syntheticKeysDown.insert(key)
+        }
+        else {
+            syntheticKeysDown.remove(key)
+        }
+    }
+
+    // MARK: - Poll Masking
+    private func maskSyntheticKey(_ key: Key) {
+        if syntheticKeys.insert(key).inserted, snapshot.pressedKeys.contains(key) {
+            overlappingPhysicalKeys.insert(key)
+        }
+    }
+
+    // MARK: - Physical Overlap
+    private func recordPhysicalKey(_ key: Key, isDown: Bool) {
+        guard syntheticKeys.contains(key) else { return }
+        if isDown {
+            overlappingPhysicalKeys.insert(key)
+        }
+        else {
+            overlappingPhysicalKeys.remove(key)
+        }
+    }
+
+    // MARK: - Poll Reconciliation
+    private func filteringSyntheticKeys(from hardware: PhysicalKeyboardSnapshot)
+        -> PhysicalKeyboardSnapshot
+    {
+        // Posting is asynchronous: keep masking a released virtual key until the
+        // system state catches up. Real key events still track overlapping presses.
+        let released = syntheticKeys.subtracting(syntheticKeysDown)
+            .subtracting(hardware.pressedKeys).subtracting(overlappingPhysicalKeys)
+        syntheticKeys.subtract(released)
+        let excluded = syntheticKeys.subtracting(overlappingPhysicalKeys)
+        var current = hardware
+        current.pressedKeys.subtract(excluded)
+        current.pressedKeys.formUnion(overlappingPhysicalKeys)
+        current.modifiers = Set(
+            ModifierKey.allCases.filter { current.pressedKeys.contains($0.key) }
+        )
+        return current
     }
 
     // MARK: - Hardware
