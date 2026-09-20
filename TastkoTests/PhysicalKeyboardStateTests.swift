@@ -185,11 +185,11 @@ struct PhysicalKeyboardStateTests {
 
     // MARK: - Caps Lock Hardware State
     @Test(arguments: [false, true], [false, true])
-    func systemLockOverridesHIDFlag(systemLock: Bool, hidLock: Bool) throws {
+    func systemLockOverridesStaleHIDFlagAndCapsLockKeyBit(systemLock: Bool, hidLock: Bool) throws {
         let state = PhysicalKeyboardState(
             readHardware: {
                 PhysicalKeyboardState.hardwareSnapshot(
-                    pressedKeys: [.a, .rightShift],
+                    pressedKeys: [.capsLock, .a, .rightShift],
                     flags: hidLock ? [.maskAlphaShift, .maskSecondaryFn] : [.maskSecondaryFn],
                     capsLockEnabled: systemLock
                 )
@@ -200,6 +200,7 @@ struct PhysicalKeyboardStateTests {
         #expect(state.snapshot.isCapsLockEnabled == systemLock)
         #expect(state.snapshot.modifiers == [.rightShift, .function])
         #expect(state.snapshot.pressedKeys == [.a, .rightShift, .function])
+        #expect(!state.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
 
         let changed = try #require(
             NSEvent.keyEvent(
@@ -217,6 +218,14 @@ struct PhysicalKeyboardStateTests {
         )
         state.receive(changed)
         #expect(state.snapshot.isCapsLockEnabled == systemLock)
+        #expect(state.snapshot.pressedKeys == [.a, .rightShift, .function])
+        #expect(!state.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
+
+        state.reset()
+        state.refresh()
+        #expect(state.snapshot.isCapsLockEnabled == systemLock)
+        #expect(state.snapshot.pressedKeys == [.a, .rightShift, .function])
+        #expect(!state.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
     }
 
     // MARK: - Reconciliation

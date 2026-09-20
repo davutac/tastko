@@ -236,6 +236,9 @@ final class PhysicalKeyboardState {
         capsLockEnabled: Bool? = nil
     ) -> PhysicalKeyboardSnapshot {
         var keys = pressedKeys
+        // Caps Lock's keycode bit can stay set after the key is released, even
+        // while the lock is off. Its separate latch state drives the highlight.
+        keys.remove(.capsLock)
         // Fn's keycode bit can remain set while Fn is up, or be absent while Fn is down.
         // Its modifier flag is authoritative in both cases.
         keys.remove(.function)

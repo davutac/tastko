@@ -12,7 +12,7 @@ extension KeyboardServiceTests {
         let physical = PhysicalKeyboardState(
             readHardware: {
                 PhysicalKeyboardState.hardwareSnapshot(
-                    pressedKeys: [],
+                    pressedKeys: [.capsLock],
                     flags: [],
                     capsLockEnabled: systemLock
                 )
@@ -35,6 +35,7 @@ extension KeyboardServiceTests {
             systemLock = enabled
             physical.refresh()
             #expect(service.effectiveCapsLockEnabled == enabled)
+            #expect(!physical.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
             let presentation = ModifierAwareKeyResolver.presentation(
                 from: ResolvedKeyPresentation(
                     title: "A",
@@ -61,10 +62,13 @@ extension KeyboardServiceTests {
             )
         }
         try service.toggleCapsLock()
+        physical.refresh()
         #expect(service.effectiveCapsLockEnabled == false)
+        #expect(!physical.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
         try service.toggleCapsLock()
         physical.refresh()
         #expect(service.effectiveCapsLockEnabled)
+        #expect(!physical.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
     }
 
     // MARK: - Caps Lock
