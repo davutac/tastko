@@ -345,11 +345,13 @@ final class KeyboardService {
 
     // MARK: - Held Keys
     func beginKeyPress(_ stroke: KeyStroke, latchedModifiers: [ModifierKey]) throws -> UUID {
-        let releases = latchedModifiers.filter { !activeOneShotModifiers.contains($0) }
+        var releases = latchedModifiers.filter { !activeOneShotModifiers.contains($0) }
         do {
             try checkLockScreenInput()
             try releaseUnclaimedModifiers(keeping: latchedModifiers)
-            for modifier in latchedModifiers { try postModifierDown(modifier) }
+            let chordModifiers = chordModifierKeys(for: stroke, latchedModifiers: latchedModifiers)
+            releases += chordModifiers
+            for modifier in latchedModifiers + chordModifiers { try postModifierDown(modifier) }
             let flags = stroke.modifiers.union(modifierFlags(for: Set(latchedModifiers)))
                 .union(functionPress == nil ? [] : [.function])
             let resolved = KeyStroke(stroke.key, modifiers: flags)
@@ -587,7 +589,7 @@ final class KeyboardService {
                 .union(modifiersAreResolved ? [] : hardwareFlags)
             let syntheticModifiers = latchedModifiers.filter {
                 postedModifiers.contains($0) || hardwareFlags.intersection($0.modifiers).isEmpty
-            }
+            } + chordModifierKeys(for: stroke, latchedModifiers: latchedModifiers)
 
             if !isScreenLocked { typingObserver?.prepareForInput() }
             try postChord(
@@ -614,6 +616,23 @@ final class KeyboardService {
     private func modifierFlags(for modifiers: Set<ModifierKey>) -> KeyModifiers {
         modifiers.reduce([]) { flags, modifier in
             flags.union(modifier.modifiers)
+        }
+    }
+
+    // MARK: - Chord Modifier Keys
+    /// Shortcut modifiers are pressed as real modifier keys, like the Accessibility
+    /// Keyboard does. Hotkey handlers that track `flagsChanged` or the session
+    /// modifier state ignore a key event that only carries modifier flags.
+    private func chordModifierKeys(
+        for stroke: KeyStroke,
+        latchedModifiers: [ModifierKey]
+    ) -> [ModifierKey] {
+        guard !stroke.modifiers.isDisjoint(with: [.command, .control, .option]) else { return [] }
+        let covered = modifierFlags(for: Set(latchedModifiers + postedModifiers))
+            .union(heldModifierFlags)
+        let order: [ModifierKey] = [.leftControl, .leftOption, .leftShift, .leftCommand]
+        return order.filter {
+            stroke.modifiers.isSuperset(of: $0.modifiers) && covered.isDisjoint(with: $0.modifiers)
         }
     }
 

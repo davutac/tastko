@@ -70,6 +70,32 @@ extension KeyboardServiceTests {
         #expect(poster.events.count == 8)
     }
 
+    // MARK: - Held Key Shortcut Modifiers
+    @Test func heldShortcutStrokePressesModifierKeysUntilRelease() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+
+        let token = try service.beginKeyPress(
+            KeyStroke(.equal, modifiers: [.control, .command]),
+            latchedModifiers: []
+        )
+        try service.endKeyPress(token)
+
+        #expect(
+            poster.events == [
+                .key(.leftControl, [.control], true),
+                .key(.leftCommand, [.control, .command], true),
+                .key(.equal, [.control, .command], true),
+                .key(.equal, [.control, .command], false),
+                .key(.leftCommand, [.control], false),
+                .key(.leftControl, [], false),
+            ]
+        )
+    }
+
     // MARK: - Held Key Cleanup
     @Test(arguments: [false, true])
     func cleanupReleasesKeyBeforeModifiersAndStaleTokenCannotAffectNewPress(

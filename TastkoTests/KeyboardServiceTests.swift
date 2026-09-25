@@ -719,12 +719,85 @@ struct KeyboardServiceTests {
 
         #expect(
             poster.events == [
+                .key(.leftShift, [.shift], true),
+                .key(.leftCommand, [.command, .shift], true),
                 .key(.a, [.command, .shift], true),
                 .key(.a, [.command, .shift], false),
+                .key(.leftCommand, [.shift], false),
+                .key(.leftShift, [], false),
             ]
         )
         #expect(receipt.method == .keyEvent)
         #expect(receipt.route == nil)
         #expect(resolver.resolveCount == 0)
+    }
+
+    // MARK: - Shortcut Modifier Keys
+    @Test func shortcutStrokePressesModifierKeysLikeAccessibilityKeyboard() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+
+        try service.press(
+            KeyStroke(.equal, modifiers: [.control, .command]),
+            latchedModifiers: [],
+            modifiersAreResolved: true
+        )
+
+        #expect(
+            poster.events == [
+                .key(.leftControl, [.control], true),
+                .key(.leftCommand, [.control, .command], true),
+                .key(.equal, [.control, .command], true),
+                .key(.equal, [.control, .command], false),
+                .key(.leftCommand, [.control], false),
+                .key(.leftControl, [], false),
+            ]
+        )
+    }
+
+    @Test func shortcutStrokeDoesNotRepressLatchedModifier() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+
+        try service.toggleOneShotModifier(.rightCommand)
+        let latched = service.consumeActiveOneShotModifiers()
+        try service.press(
+            KeyStroke(.equal, modifiers: [.control, .command]),
+            latchedModifiers: latched,
+            modifiersAreResolved: true
+        )
+
+        #expect(
+            poster.events == [
+                .key(.rightCommand, [.command], true),
+                .key(.leftControl, [.command, .control], true),
+                .key(.equal, [.control, .command], true),
+                .key(.equal, [.control, .command], false),
+                .key(.leftControl, [.command], false),
+                .key(.rightCommand, [], false),
+            ]
+        )
+    }
+
+    @Test func shiftedCharacterStrokeKeepsFlagsOnlyDelivery() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+
+        try service.press(
+            KeyStroke(.a, modifiers: [.shift]),
+            latchedModifiers: [],
+            modifiersAreResolved: true
+        )
+
+        #expect(poster.events == [.key(.a, [.shift], true), .key(.a, [.shift], false)])
     }
 }
