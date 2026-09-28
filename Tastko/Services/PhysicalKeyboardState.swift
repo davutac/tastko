@@ -12,7 +12,6 @@ final class PhysicalKeyboardState {
     @ObservationIgnored private var localMonitor: Any?
     @ObservationIgnored private var globalMonitor: Any?
     @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
-    @ObservationIgnored private var reconciliationTimer: Timer?
     @ObservationIgnored private var controlDates: [SystemControl: Date] = [:]
     @ObservationIgnored private let readHardware: () -> PhysicalKeyboardSnapshot
     @ObservationIgnored private let canObserve: () -> Bool
@@ -65,10 +64,6 @@ final class PhysicalKeyboardState {
                 }
             )
         }
-        // Recover missed releases and permission changes without retaining typed text.
-        reconciliationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
-            [weak self] _ in MainActor.assumeIsolated { self?.refresh() }
-        }
         refresh()
     }
 
@@ -80,8 +75,6 @@ final class PhysicalKeyboardState {
         globalMonitor = nil
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         workspaceObservers.removeAll()
-        reconciliationTimer?.invalidate()
-        reconciliationTimer = nil
         reset()
     }
 
@@ -170,6 +163,21 @@ final class PhysicalKeyboardState {
         }
         else {
             syntheticKeysDown.remove(key)
+        }
+    }
+
+    // MARK: - Posted Flags
+    /// A key event posted with modifier flags (a right-click's Shift) briefly marks
+    /// the left-side modifier key down in the HID state without a flagsChanged event.
+    /// Mask it so a poll during that window cannot latch a ghost modifier press.
+    func recordPostedFlags(_ flags: CGEventFlags) {
+        let impliedKeys: [(CGEventFlags, Key)] = [
+            (.maskShift, .leftShift), (.maskControl, .leftControl),
+            (.maskAlternate, .leftOption), (.maskCommand, .leftCommand),
+            (.maskSecondaryFn, .function),
+        ]
+        for (flag, key) in impliedKeys where flags.contains(flag) {
+            maskSyntheticKey(key)
         }
     }
 

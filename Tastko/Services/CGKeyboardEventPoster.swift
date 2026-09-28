@@ -76,6 +76,7 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
         if let key = Key(rawValue: keyCode) {
             PhysicalKeyboardState.shared.recordPostedKey(key, isDown: keyDown)
         }
+        PhysicalKeyboardState.shared.recordPostedFlags(event.flags)
         if let processIdentifier {
             event.postToPid(processIdentifier)
         }

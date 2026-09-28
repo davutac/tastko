@@ -123,6 +123,57 @@ struct PhysicalKeyboardStateTests {
         #expect(state.snapshot.pressedKeys.isEmpty)
     }
 
+    @Test(arguments: [
+        ModifierKey.leftShift, .leftControl, .leftOption, .leftCommand, .function,
+    ])
+    func postedFlagsNeverLatchAGhostModifierPress(modifier: ModifierKey) {
+        var hardware = PhysicalKeyboardSnapshot()
+        let state = PhysicalKeyboardState(readHardware: { hardware }, canObserve: { true })
+        state.recordPostedFlags(modifier.modifiers.cgEventFlags)
+
+        // The system briefly reports the flag's modifier key down, without flagsChanged.
+        hardware.pressedKeys = [modifier.key]
+        hardware.modifiers = [modifier]
+        state.refresh()
+        #expect(state.snapshot.modifiers.isEmpty)
+        #expect(state.snapshot.pressedKeys.isEmpty)
+
+        hardware = PhysicalKeyboardSnapshot()
+        state.refresh()
+        // Once the ghost clears, a real press shows again.
+        hardware.pressedKeys = [modifier.key]
+        hardware.modifiers = [modifier]
+        state.refresh()
+        #expect(state.snapshot.modifiers == [modifier])
+    }
+
+    @Test func postedFlagsKeepAPhysicallyHeldModifier() throws {
+        var hardware = PhysicalKeyboardSnapshot(pressedKeys: [.leftShift], modifiers: [.leftShift])
+        let state = PhysicalKeyboardState(readHardware: { hardware }, canObserve: { true })
+        state.refresh()
+        state.recordPostedFlags(.maskShift)
+        state.refresh()
+        #expect(state.snapshot.modifiers == [.leftShift])
+
+        hardware = PhysicalKeyboardSnapshot()
+        let released = try #require(
+            NSEvent.keyEvent(
+                with: .flagsChanged,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: "",
+                charactersIgnoringModifiers: "",
+                isARepeat: false,
+                keyCode: Key.leftShift.rawValue
+            )
+        )
+        state.receive(released)
+        #expect(state.snapshot.modifiers.isEmpty)
+    }
+
     @Test func matchesPlainKeysAndCompleteShortcutChords() {
         let snapshot = PhysicalKeyboardSnapshot(pressedKeys: [.c], modifiers: [.rightCommand])
         #expect(snapshot.isPressed(.keyStroke(KeyStroke(.c))))
