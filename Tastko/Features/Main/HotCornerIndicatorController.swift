@@ -62,17 +62,29 @@ final class HotCornerIndicatorPanel: NSPanel {
 // MARK: - HotCornerProgressView
 private struct HotCornerProgressView: View {
     let progress: HotCornerProgress
+
+    // MARK: - Body
+    var body: some View {
+        HotCornerProgressRing(progress: progress)
+            .keyboardTheme()
+    }
+}
+
+// MARK: - HotCornerProgressRing
+private struct HotCornerProgressRing: View {
+    let progress: HotCornerProgress
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.keyboardPalette) private var palette
 
     // MARK: - Body
     var body: some View {
         ZStack {
-            Circle().fill(KeyboardDesign.Palette.chassis)
-            Circle().stroke(KeyboardDesign.Palette.border, lineWidth: 1)
+            Circle().fill(palette.chassis)
+            Circle().stroke(palette.border, lineWidth: 1)
             Circle()
                 .trim(from: 0, to: progress.fraction)
                 .stroke(
-                    KeyboardDesign.Palette.active,
+                    palette.active,
                     style: StrokeStyle(lineWidth: 3, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
@@ -80,7 +92,7 @@ private struct HotCornerProgressView: View {
                 .animation(reduceMotion ? nil : .linear(duration: 0.1), value: progress.fraction)
             Text("\(progress.remaining, format: .number.precision(.fractionLength(1)))s")
                 .font(.system(size: 13, weight: .medium).monospacedDigit())
-                .foregroundStyle(KeyboardDesign.Palette.label)
+                .foregroundStyle(palette.label)
         }
         .padding(1)
         .frame(width: 60, height: 60)

@@ -86,7 +86,6 @@ struct ChildWindowConfiguration {
 // MARK: - Child Window Style
 struct ChildWindowStyle {
     var background = AnyShapeStyle(.regularMaterial)
-    var foreground: Color = .primary
     var cornerRadius: CGFloat = 14
     var borderColor: Color = .primary.opacity(0.15)
     var borderWidth: CGFloat = 1

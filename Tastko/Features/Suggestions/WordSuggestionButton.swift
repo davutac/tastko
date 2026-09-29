@@ -7,6 +7,8 @@ struct WordSuggestionButton: View {
     let service: TextPredictionService
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.soundService) private var soundService
+    @Environment(\.keyboardPalette) private var palette
+    @Environment(\.keycapCorners) private var corners
 
     @State private var pressedButton: KeyMouseButton?
     @State private var isPressActive = false
@@ -17,13 +19,14 @@ struct WordSuggestionButton: View {
         suggestionLabel
             .contentTransition(reduceMotion ? .identity : .opacity)
             .font(KeyboardDesign.Typography.suggestion)
-            .foregroundStyle(KeyboardDesign.Palette.label)
+            .foregroundStyle(palette.label)
             .lineLimit(1)
+            .keycapLabelInset(isPressed: pressedButton == .left)
             .padding(.horizontal, KeyboardDesign.Metrics.suggestionInset)
             .frame(height: KeyboardDesign.Metrics.suggestionHeight)
             .background {
                 KeycapSurface(
-                    shape: RoundedRectangle(cornerRadius: KeyboardDesign.Metrics.keyRadius),
+                    shape: KeycapShape(cornerRadius: corners.radius),
                     isPressed: pressedButton == .left,
                     isHovered: isHovered
                 )
@@ -68,7 +71,7 @@ struct WordSuggestionButton: View {
         else { return Text(word) }
         let prefix = Text(String(word[..<prefixRange.upperBound]))
             .font(KeyboardDesign.Typography.suggestionPrefix)
-            .foregroundStyle(KeyboardDesign.Palette.secondaryLabel)
+            .foregroundStyle(palette.secondaryLabel)
         let completion = Text(String(word[prefixRange.upperBound...]))
             .font(KeyboardDesign.Typography.suggestionCompletion)
         return Text("\(prefix)\(completion)")

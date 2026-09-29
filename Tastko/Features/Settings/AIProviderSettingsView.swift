@@ -7,6 +7,8 @@ struct AIProviderSettingsView: View {
     // MARK: - Body
     var body: some View {
         Form {
+            SettingsPaneHeader(pane: .ai)
+
             if let error = service.persistence.error ?? service.storageError {
                 Section {
                     Text(error).foregroundStyle(.red)

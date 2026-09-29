@@ -94,7 +94,7 @@ final class LoginWindowApplication: NSObject, NSApplicationDelegate {
         panel.title = "Tastko"
         panel.canBecomeVisibleWithoutLogin = true
         panel.preventsHiding = true
-        let host = NSHostingView(rootView: LoginWindowKeyboardView(keyboard: keyboard))
+        let host = NSHostingView(rootView: LoginWindowKeyboardView(keyboard: keyboard).keyboardTheme())
         host.sizingOptions = []
         host.safeAreaRegions = []
         panel.contentView = host

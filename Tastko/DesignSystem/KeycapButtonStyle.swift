@@ -43,6 +43,8 @@ private struct KeycapButtonContent: View {
     let scale: CGFloat
     let fillsWidth: Bool
     let isExternallyPressed: Bool
+    @Environment(\.keyboardPalette) private var palette
+    @Environment(\.keycapCorners) private var corners
     @State private var isHovered = false
 
     // MARK: - Interaction
@@ -52,13 +54,14 @@ private struct KeycapButtonContent: View {
     var body: some View {
         configuration.label
             .font(.system(size: 15 * scale, weight: .medium))
-            .foregroundStyle(KeyboardDesign.Palette.label)
+            .foregroundStyle(palette.label)
+            .keycapLabelInset(isPressed: isPressed)
             .padding(.horizontal, fillsWidth ? 0 : KeyboardDesign.Metrics.suggestionInset)
             .frame(maxWidth: fillsWidth ? .infinity : nil)
             .frame(height: KeyboardDesign.Metrics.suggestionHeight * scale)
             .background {
                 KeycapSurface(
-                    shape: RoundedRectangle(cornerRadius: KeyboardDesign.Metrics.keyRadius * scale),
+                    shape: KeycapShape(cornerRadius: corners.radius * scale),
                     isPressed: isPressed,
                     isHovered: isHovered
                 )

@@ -13,4 +13,7 @@ extension EnvironmentValues {
     @Entry var panelEditorProfileStore: PanelEditorProfileStore = .shared
     @Entry var soundService: SoundService = .shared
     @Entry var windowDimensions: WindowDimensions = .environmentDefault
+    @Entry var keyboardPalette: KeyboardPalette = .standard(.light)
+    @Entry var keycapStyle: KeycapStyle = .mechanical
+    @Entry var keycapCorners: KeycapCorners = .standard
 }

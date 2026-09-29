@@ -13,17 +13,20 @@ struct PanelEditorLayoutView: View {
             let bounds = panel.layoutBounds
             let scale = layoutScale(in: proxy.size)
 
-            ZStack(alignment: .topLeading) {
-                ForEach(panel.visibleButtons) { button in
-                    PanelEditorButtonView(button: button, scale: scale)
-                        .frame(
-                            width: button.frame.width * scale,
-                            height: button.frame.height * scale
-                        )
-                        .offset(
-                            x: (button.frame.minX - bounds.minX) * scale,
-                            y: (button.frame.minY - bounds.minY) * scale
-                        )
+            // Lets Glass-style keys share one backdrop pass instead of sampling it per key.
+            GlassEffectContainer(spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    ForEach(panel.visibleButtons) { button in
+                        PanelEditorButtonView(button: button, scale: scale)
+                            .frame(
+                                width: button.frame.width * scale,
+                                height: button.frame.height * scale
+                            )
+                            .offset(
+                                x: (button.frame.minX - bounds.minX) * scale,
+                                y: (button.frame.minY - bounds.minY) * scale
+                            )
+                    }
                 }
             }
             .frame(

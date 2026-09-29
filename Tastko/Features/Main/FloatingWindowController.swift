@@ -68,6 +68,7 @@ final class FloatingWindowController {
                 minimize: { self?.minimize() },
                 expand: { self?.expand() }
             )
+            .keyboardTheme()
         }
         if presentationState == .expanded && !isScreenLocked,
             let sentenceService,
@@ -80,6 +81,7 @@ final class FloatingWindowController {
                 configuration: .keyboardCompanion
             ) {
                 KeyboardCompanionView()
+                    .keyboardTheme()
             }
         }
         else {

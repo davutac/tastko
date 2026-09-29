@@ -10,6 +10,7 @@ struct MainWindowContent: View {
     @Environment(\.floatingWindowController) private var floatingWindowController
     @Environment(\.panelEditorProfileStore) private var profileStore
     @Environment(\.windowDimensions) private var windowDimensions
+    @Environment(\.keyboardPalette) private var palette
 
     let presentationState: FloatingWindowPresentationState
     let minimumSize: CGSize
@@ -27,12 +28,11 @@ struct MainWindowContent: View {
                 minimizedContent
             }
         }
-        .foregroundStyle(KeyboardDesign.Palette.label)
-        .background(KeyboardDesign.Palette.chassis)
+        .background(palette.chassis)
         .clipShape(.rect(cornerRadius: cornerRadius))
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius)
-                .strokeBorder(KeyboardDesign.Palette.border, lineWidth: 1)
+                .strokeBorder(palette.border, lineWidth: 1)
                 .allowsHitTesting(false)
         }
     }

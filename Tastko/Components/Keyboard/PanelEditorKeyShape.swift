@@ -1,8 +1,10 @@
 import SwiftUI
 
 // MARK: - PanelEditorISOEnterMetrics
+/// Panel Editor's ISO Return is a 46 × 77 frame whose lower part starts where the key to
+/// its left ends (8) plus the 2-point gap Panel Editor leaves between keys.
 nonisolated enum PanelEditorISOEnterMetrics {
-    nonisolated static let lowerLeadingInsetFraction: CGFloat = 8 / 46
+    nonisolated static let lowerLeadingInsetFraction: CGFloat = 10 / 46
     nonisolated static let upperHeightFraction: CGFloat = 37 / 77
 }
 
@@ -10,17 +12,22 @@ nonisolated enum PanelEditorISOEnterMetrics {
 struct PanelEditorKeyShape: Shape {
     let buttonShape: PanelEditorButtonShape
     var cornerRadius: CGFloat = 0
+    /// How far `rect` is already inset from the button's frame. The notch edges move in by
+    /// the same amount, so the gaps beside them match the gaps between other keys.
+    var frameInset: CGFloat = 0
 
     // MARK: - Path
     nonisolated func path(in rect: CGRect) -> Path {
         switch buttonShape {
         case .rectangle:
-            return Path(roundedRect: rect, cornerRadius: cornerRadius)
+            return KeycapShape(cornerRadius: cornerRadius).path(in: rect)
         case .isoReturn:
+            // Measured on the button's frame, then moved in by `frameInset` like the outer edges.
             let lowerLeadingInset =
-                rect.width * PanelEditorISOEnterMetrics.lowerLeadingInsetFraction
+                (rect.width + 2 * frameInset) * PanelEditorISOEnterMetrics.lowerLeadingInsetFraction
             let upperSectionHeight =
-                rect.height * PanelEditorISOEnterMetrics.upperHeightFraction
+                (rect.height + 2 * frameInset) * PanelEditorISOEnterMetrics.upperHeightFraction
+                - 2 * frameInset
             let corners = [
                 CGPoint(x: rect.minX, y: rect.minY),
                 CGPoint(x: rect.maxX, y: rect.minY),

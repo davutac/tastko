@@ -2,10 +2,13 @@ import SwiftUI
 
 // MARK: - KeyboardDesignPreview
 private struct KeyboardDesignPreview: View {
+    let theme: KeyboardTheme
+    let colorScheme: ColorScheme
+
     // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: KeyboardDesign.Metrics.rowSpacing) {
-            Text("Tastko")
+            Text(theme.name)
                 .font(KeyboardDesign.Typography.title)
             HStack(spacing: KeyboardDesign.Metrics.rowSpacing) {
                 ForEach(["morning", "afternoon", "evening"], id: \.self) { word in
@@ -13,55 +16,32 @@ private struct KeyboardDesignPreview: View {
                         .buttonStyle(.keycap)
                 }
             }
-            HStack(spacing: KeyboardDesign.Metrics.rowSpacing) {
-                key("A")
-                key("Hover", isHovered: true)
-                key("Press", isPressed: true)
-                key("⇧", isActive: true)
-            }
-            HStack(spacing: KeyboardDesign.Metrics.rowSpacing) {
-                key("esc", fill: .red)
-                key("NEW", fill: .green)
-                key("FILE", fill: .blue)
-                key("DICT", fill: .yellow)
+            ForEach(KeycapStyle.allCases) { style in
+                HStack(spacing: 0) {
+                    SampleKey("A")
+                    SampleKey("⇧", width: 1.5, isActive: true)
+                    SampleKey("´", isDeadKey: true)
+                    Text(style.title)
+                        .font(.caption)
+                        .padding(.leading, 8)
+                }
+                .environment(\.keycapStyle, style)
             }
         }
-        .foregroundStyle(KeyboardDesign.Palette.label)
         .padding(KeyboardDesign.Metrics.rowInset)
-        .background(KeyboardDesign.Palette.chassis)
-        .frame(width: 440)
-    }
-
-    // MARK: - Key States
-    private func key(
-        _ title: String,
-        fill: Color = KeyboardDesign.Palette.keyFill,
-        isHovered: Bool = false,
-        isPressed: Bool = false,
-        isActive: Bool = false
-    ) -> some View {
-        Text(title)
-            .font(KeyboardDesign.Typography.key(size: 22))
-            .frame(maxWidth: .infinity)
-            .frame(height: 64)
-            .background {
-                KeycapSurface(
-                    shape: RoundedRectangle(cornerRadius: KeyboardDesign.Metrics.keyRadius),
-                    fill: fill,
-                    isPressed: isPressed,
-                    isHovered: isHovered,
-                    isActive: isActive
-                )
-            }
+        .background(theme.palette(for: colorScheme).chassis)
+        .keyboardPalette(theme.palette(for: colorScheme))
     }
 }
 
-#Preview("Light") {
-    KeyboardDesignPreview()
-        .environment(\.colorScheme, .light)
+#Preview("Tastko Light") {
+    KeyboardDesignPreview(theme: .tastko, colorScheme: .light)
 }
 
-#Preview("Dark") {
-    KeyboardDesignPreview()
-        .environment(\.colorScheme, .dark)
+#Preview("Tastko Dark") {
+    KeyboardDesignPreview(theme: .tastko, colorScheme: .dark)
+}
+
+#Preview("Tokyo Night") {
+    KeyboardDesignPreview(theme: .tokyoNight, colorScheme: .dark)
 }

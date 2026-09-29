@@ -130,6 +130,17 @@ extension Defaults.Keys {
         "experimentalLockScreenDisplay",
         default: false
     )
+    static let keyboardTheme = Defaults.Key<String>(
+        "keyboardTheme",
+        default: KeyboardTheme.defaultID
+    )
+    static let keyboardAppearance = Defaults.Key<KeyboardAppearance>(
+        "keyboardAppearance",
+        default: .system
+    )
+    static let keycapStyle = Defaults.Key<KeycapStyle>("keycapStyle", default: .mechanical)
+    static let keycapCorners = Defaults.Key<KeycapCorners>("keycapCorners", default: .standard)
+
     static let functionToolbarVisible = Defaults.Key<Bool>("functionToolbarVisible", default: false)
     static let hotCornerDwellDuration = Defaults.Key<Double>(
         "hotCornerDwellDuration",

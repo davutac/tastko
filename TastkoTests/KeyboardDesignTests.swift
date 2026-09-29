@@ -9,14 +9,14 @@ struct KeyboardDesignTests {
     // MARK: - Flat Profile Colors
     @Test @MainActor func importedColorsPreserveComponentsAndUseFallbackOnlyWhenMissing() throws {
         let components = PanelEditorColorComponents(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.75)
-        let color = KeyboardDesign.Palette.imported(components, fallback: .white)
+        let color = try #require(KeyboardPalette.imported(components))
         let nativeColor = try #require(NSColor(color).usingColorSpace(.sRGB))
 
         #expect(abs(nativeColor.redComponent - components.red) < 0.001)
         #expect(abs(nativeColor.greenComponent - components.green) < 0.001)
         #expect(abs(nativeColor.blueComponent - components.blue) < 0.001)
         #expect(abs(nativeColor.alphaComponent - components.alpha) < 0.001)
-        #expect(KeyboardDesign.Palette.imported(nil, fallback: .white) == .white)
+        #expect(KeyboardPalette.imported(nil) == nil)
     }
 
     @Test(arguments: [false, true]) @MainActor
@@ -26,7 +26,7 @@ struct KeyboardDesignTests {
             content:
                 KeycapSurface(
                     shape: Rectangle(),
-                    fill: KeyboardDesign.Palette.imported(components, fallback: .white),
+                    fill: KeyboardPalette.imported(components),
                     isActive: isActive
                 )
                 .frame(width: 60, height: 60)
@@ -83,6 +83,50 @@ struct KeyboardDesignTests {
         #expect(!path.contains(CGPoint(x: 14, y: 80)))
         #expect(path.contains(CGPoint(x: 30, y: 80)))
         #expect(!path.contains(CGPoint(x: 10.1, y: 20.1)))
+    }
+
+    @Test func returnKeyNotchKeepsTheKeyGapWhenInset() {
+        let frame = CGRect(x: 0, y: 0, width: 46, height: 77)
+        let inset: CGFloat = 2
+        let path = PanelEditorKeyShape(buttonShape: .isoReturn, frameInset: inset)
+            .path(in: frame.insetBy(dx: inset, dy: inset))
+
+        // The neighbouring key ends at x 8 and the row above ends at y 37; both notch edges
+        // sit one inset past Panel Editor's 2-point gap, like every other key edge.
+        #expect(!path.contains(CGPoint(x: 11.5, y: 60)))
+        #expect(path.contains(CGPoint(x: 12.5, y: 60)))
+        #expect(path.contains(CGPoint(x: 6, y: 34.5)))
+        #expect(!path.contains(CGPoint(x: 6, y: 35.5)))
+    }
+
+    // MARK: - Keycap Shape
+    @Test func pillCornersBecomeACapsule() {
+        let rect = CGRect(x: 0, y: 0, width: 80, height: 30)
+        let path = KeycapShape(cornerRadius: KeycapCorners.pill.radius).path(in: rect)
+
+        #expect(path.boundingRect == rect)
+        #expect(path.contains(CGPoint(x: 40, y: 15)))
+        #expect(!path.contains(CGPoint(x: 2, y: 2)))
+    }
+
+    // MARK: - Themes
+    @Test func unknownThemeFallsBackToTastko() {
+        #expect(KeyboardTheme.named("missing").id == KeyboardTheme.tastko.id)
+        #expect(Set(KeyboardTheme.all.map(\.id)).count == KeyboardTheme.all.count)
+    }
+
+    @Test(arguments: KeyboardTheme.all.filter { $0.id != KeyboardTheme.tastko.id })
+    @MainActor func themeLabelsStayReadableOnKeys(theme: KeyboardTheme) throws {
+        for palette in [theme.light, theme.dark].compactMap(\.self) {
+            let label = try #require(NSColor(palette.label).usingColorSpace(.sRGB))
+            let key = try #require(NSColor(palette.keyFill).usingColorSpace(.sRGB))
+            let labelLuminance = luminance(label)
+            let keyLuminance = luminance(key)
+            let contrast =
+                (max(labelLuminance, keyLuminance) + 0.05)
+                / (min(labelLuminance, keyLuminance) + 0.05)
+            #expect(contrast >= 4.5, "\(theme.name) \(palette.colorScheme) contrast \(contrast)")
+        }
     }
 
     // MARK: - Contrast
