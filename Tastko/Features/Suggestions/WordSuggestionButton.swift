@@ -16,46 +16,45 @@ struct WordSuggestionButton: View {
 
     // MARK: - Body
     var body: some View {
-        suggestionLabel
-            .contentTransition(reduceMotion ? .identity : .opacity)
-            .font(KeyboardDesign.Typography.suggestion)
-            .foregroundStyle(palette.label)
-            .lineLimit(1)
-            .keycapLabelInset(isPressed: pressedButton == .left)
-            .padding(.horizontal, KeyboardDesign.Metrics.suggestionInset)
-            .frame(height: KeyboardDesign.Metrics.suggestionHeight)
-            .background {
-                KeycapSurface(
-                    shape: KeycapShape(cornerRadius: corners.radius),
-                    isPressed: pressedButton == .left,
-                    isHovered: isHovered
-                )
-            }
-            .scaleEffect(pressedButton == .left ? 0.97 : 1)
-            .animation(
-                reduceMotion ? nil : .smooth(duration: 0.32),
-                value: service.typedPrefix
+        KeycapSurface(
+            shape: KeycapShape(cornerRadius: corners.radius),
+            isPressed: pressedButton == .left,
+            isHovered: isHovered
+        ) {
+            suggestionLabel
+                .contentTransition(reduceMotion ? .identity : .opacity)
+                .font(KeyboardDesign.Typography.suggestion)
+                .foregroundStyle(palette.label)
+                .lineLimit(1)
+                .keycapLabelInset(isPressed: pressedButton == .left)
+                .padding(.horizontal, KeyboardDesign.Metrics.suggestionInset)
+                .frame(height: KeyboardDesign.Metrics.suggestionHeight)
+        }
+        .scaleEffect(pressedButton == .left ? 0.97 : 1)
+        .animation(
+            reduceMotion ? nil : .smooth(duration: 0.32),
+            value: service.typedPrefix
+        )
+        .animation(nil, value: pressedButton)
+        .overlay {
+            KeyMouseEventView(
+                pressedButton: $pressedButton,
+                mousePressed: beginPress,
+                mouseReleasedInside: releasePress,
+                mouseCancelled: cancelPress
             )
-            .animation(nil, value: pressedButton)
-            .overlay {
-                KeyMouseEventView(
-                    pressedButton: $pressedButton,
-                    mousePressed: beginPress,
-                    mouseReleasedInside: releasePress,
-                    mouseCancelled: cancelPress
-                )
-                .accessibilityHidden(true)
-            }
-            .onHover { isHovered = $0 }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Insert \(word)")
-            .accessibilityIdentifier("prediction-\(index)")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-                soundService.play(.keyPress)
-                service.accept(word: word)
-            }
-            .onDisappear(perform: cancelPress)
+            .accessibilityHidden(true)
+        }
+        .onHover { isHovered = $0 }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Insert \(word)")
+        .accessibilityIdentifier("prediction-\(index)")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            soundService.play(.keyPress)
+            service.accept(word: word)
+        }
+        .onDisappear(perform: cancelPress)
     }
 
     // MARK: - Completion Highlight

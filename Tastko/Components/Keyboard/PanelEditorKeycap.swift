@@ -19,46 +19,46 @@ struct PanelEditorKeycap: View {
             frameInset: keyInset
         )
 
-        ZStack(alignment: .topTrailing) {
-            KeycapSurface(
-                shape: keyShape,
-                fill: KeyboardPalette.imported(button.backgroundColor),
-                isPressed: isPressed,
-                isHovered: isHovered,
-                isActive: isActive,
-                isDeadKey: presentation.isDeadKey
-            )
-
-            Text(displayTitle)
-                .font(KeyboardDesign.Typography.key(size: button.fontSize * scale))
-                .lineLimit(1)
-                .minimumScaleFactor(0.45)
-                .foregroundStyle(
-                    KeyboardPalette.imported(button.foregroundColor) ?? palette.label
-                )
-                .padding(max(3, 4 * scale))
-                .padding(.leading, labelLeadingInset)
-                .keycapLabelInset(isPressed: isPressed)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if let secondaryTitle = presentation.secondaryTitle {
-                Text(secondaryTitle)
-                    .font(KeyboardDesign.Typography.secondaryKey(scale: scale))
+        KeycapSurface(
+            shape: keyShape,
+            fill: KeyboardPalette.imported(button.backgroundColor),
+            isPressed: isPressed,
+            isHovered: isHovered,
+            isActive: isActive,
+            isDeadKey: presentation.isDeadKey
+        ) {
+            ZStack(alignment: .topTrailing) {
+                Text(displayTitle)
+                    .font(KeyboardDesign.Typography.key(size: button.fontSize * scale))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.45)
                     .foregroundStyle(
-                        KeyboardPalette.imported(button.foregroundColor)
-                            ?? palette.secondaryLabel
+                        KeyboardPalette.imported(button.foregroundColor) ?? palette.label
                     )
-                    .padding(.top, max(2, 3 * scale))
-                    .padding(.trailing, max(3, 4 * scale))
+                    .padding(max(3, 4 * scale))
+                    .padding(.leading, labelLeadingInset)
+                    .keycapLabelInset(isPressed: isPressed)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if let secondaryTitle = presentation.secondaryTitle {
+                    Text(secondaryTitle)
+                        .font(KeyboardDesign.Typography.secondaryKey(scale: scale))
+                        .lineLimit(1)
+                        .foregroundStyle(
+                            KeyboardPalette.imported(button.foregroundColor)
+                                ?? palette.secondaryLabel
+                        )
+                        .padding(.top, max(2, 3 * scale))
+                        .padding(.trailing, max(3, 4 * scale))
+                }
             }
-        }
-        .overlay(alignment: .topLeading) {
-            if isActive {
-                Circle()
-                    .fill(palette.active)
-                    .frame(width: max(4, 4 * scale), height: max(4, 4 * scale))
-                    .padding(max(4, 6 * scale))
+            .overlay(alignment: .topLeading) {
+                if isActive {
+                    Circle()
+                        .fill(palette.active)
+                        .frame(width: max(4, 4 * scale), height: max(4, 4 * scale))
+                        .padding(max(4, 6 * scale))
+                }
             }
         }
         .padding(keyInset)

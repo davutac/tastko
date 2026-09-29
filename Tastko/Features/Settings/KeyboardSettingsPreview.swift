@@ -107,30 +107,29 @@ struct SampleKey: View {
 
     // MARK: - Body
     var body: some View {
-        Text(title)
-            .font(.system(size: fontSize))
-            .foregroundStyle(palette.label)
-            .keycapLabelInset(isPressed: isPressed)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                KeycapSurface(
-                    shape: KeycapShape(cornerRadius: corners.radius),
-                    isPressed: isPressed,
-                    isHovered: isHovered,
-                    isActive: isActive,
-                    isDeadKey: isDeadKey
-                )
-            }
-            .padding(KeyboardDesign.Metrics.keyInset)
-            .scaleEffect(isPressed ? 0.97 : 1)
-            .offset(y: isPressed ? 1 : 0)
-            .frame(width: unit * width, height: unit)
-            .contentShape(.rect)
-            .onHover { isHovered = $0 }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($isPressed) { _, isPressed, _ in isPressed = true }
-            )
-            .transaction { $0.animation = nil }
+        KeycapSurface(
+            shape: KeycapShape(cornerRadius: corners.radius),
+            isPressed: isPressed,
+            isHovered: isHovered,
+            isActive: isActive,
+            isDeadKey: isDeadKey
+        ) {
+            Text(title)
+                .font(.system(size: fontSize))
+                .foregroundStyle(palette.label)
+                .keycapLabelInset(isPressed: isPressed)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(KeyboardDesign.Metrics.keyInset)
+        .scaleEffect(isPressed ? 0.97 : 1)
+        .offset(y: isPressed ? 1 : 0)
+        .frame(width: unit * width, height: unit)
+        .contentShape(.rect)
+        .onHover { isHovered = $0 }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .updating($isPressed) { _, isPressed, _ in isPressed = true }
+        )
+        .transaction { $0.animation = nil }
     }
 }

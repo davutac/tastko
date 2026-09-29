@@ -28,7 +28,9 @@ struct KeyboardDesignTests {
                     shape: Rectangle(),
                     fill: KeyboardPalette.imported(components),
                     isActive: isActive
-                )
+                ) {
+                    Color.clear
+                }
                 .frame(width: 60, height: 60)
         )
         let image = try #require(renderer.nsImage)

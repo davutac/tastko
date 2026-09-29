@@ -1,27 +1,34 @@
 import SwiftUI
 
 // MARK: - KeycapSurface
-/// Draws a keycap in the environment's `KeycapStyle` and `KeyboardPalette`.
+/// Draws a keycap and its content using the environment's style and palette.
 /// `fill` overrides the palette's key color, for keys that bring their own.
-struct KeycapSurface<KeyShape: Shape>: View {
+struct KeycapSurface<KeyShape: Shape, Content: View>: View {
     let shape: KeyShape
     var fill: Color?
     var isPressed = false
     var isHovered = false
     var isActive = false
     var isDeadKey = false
+    @ViewBuilder var content: Content
     @Environment(\.keyboardPalette) private var palette
     @Environment(\.keycapStyle) private var style
     @Environment(\.colorSchemeContrast) private var contrast
 
     // MARK: - Body
     var body: some View {
-        surface
-            .overlay {
-                if let borderColor { shape.stroke(borderColor, lineWidth: borderWidth) }
+        content
+            .background {
+                surface.allowsHitTesting(false)
             }
-            .transaction { $0.animation = nil }
-            .allowsHitTesting(false)
+            // Keep labels inside the glass so its shared backdrop does not blur them.
+            .glassEffect(style == .glass ? .regular.tint(glassTint) : .identity, in: shape)
+            .overlay {
+                if let borderColor {
+                    shape.stroke(borderColor, lineWidth: borderWidth)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 
     // MARK: - Styles
@@ -34,7 +41,9 @@ struct KeycapSurface<KeyShape: Shape>: View {
         case .floating: floating
         case .outline: outline
         case .underline: underline
-        case .glass: glass
+        case .glass:
+            // Native glass desaturates in the nonactivating keyboard panel.
+            if let fill { face(fill.opacity(0.65)) }
         case .soft: soft
         case .inset: inset
         case .bold: face(keyFill)
@@ -71,7 +80,9 @@ struct KeycapSurface<KeyShape: Shape>: View {
         face(keyFill).background {
             if !isPressed {
                 shape
-                    .fill(palette.keyEdge.shadow(.drop(color: palette.keyShadow, radius: 1.5, y: 1)))
+                    .fill(
+                        palette.keyEdge.shadow(.drop(color: palette.keyShadow, radius: 1.5, y: 1))
+                    )
                     .offset(y: 1)
             }
         }
@@ -104,13 +115,6 @@ struct KeycapSurface<KeyShape: Shape>: View {
                     .frame(height: accentColor == nil ? 2 : 3)
             }
             .clipShape(shape)
-    }
-
-    /// Liquid Glass keys that pick up the chassis behind them.
-    private var glass: some View {
-        shape
-            .fill(.clear)
-            .glassEffect(.regular.tint(tint ?? fill?.opacity(0.6)), in: shape)
     }
 
     /// A face lit from the top left, with a highlight and a shadow on opposite sides.
@@ -160,6 +164,13 @@ struct KeycapSurface<KeyShape: Shape>: View {
 
     // MARK: - Colors
     private var keyFill: Color { fill ?? palette.keyFill }
+
+    private var glassTint: Color? {
+        guard let fill else { return tint }
+        if isPressed { return fill.mix(with: palette.active, by: 0.18) }
+        if isHovered { return fill.mix(with: palette.label, by: 0.06) }
+        return fill
+    }
 
     private var highlightColor: Color {
         .white.opacity(palette.colorScheme == .dark ? 0.06 : 0.9)

@@ -52,23 +52,22 @@ private struct KeycapButtonContent: View {
 
     // MARK: - Body
     var body: some View {
-        configuration.label
-            .font(.system(size: 15 * scale, weight: .medium))
-            .foregroundStyle(palette.label)
-            .keycapLabelInset(isPressed: isPressed)
-            .padding(.horizontal, fillsWidth ? 0 : KeyboardDesign.Metrics.suggestionInset)
-            .frame(maxWidth: fillsWidth ? .infinity : nil)
-            .frame(height: KeyboardDesign.Metrics.suggestionHeight * scale)
-            .background {
-                KeycapSurface(
-                    shape: KeycapShape(cornerRadius: corners.radius * scale),
-                    isPressed: isPressed,
-                    isHovered: isHovered
-                )
-            }
-            .scaleEffect(isPressed ? 0.97 : 1)
-            .transaction { $0.animation = nil }
-            .contentShape(.rect)
-            .onHover { isHovered = $0 }
+        KeycapSurface(
+            shape: KeycapShape(cornerRadius: corners.radius * scale),
+            isPressed: isPressed,
+            isHovered: isHovered
+        ) {
+            configuration.label
+                .font(.system(size: 15 * scale, weight: .medium))
+                .foregroundStyle(palette.label)
+                .keycapLabelInset(isPressed: isPressed)
+                .padding(.horizontal, fillsWidth ? 0 : KeyboardDesign.Metrics.suggestionInset)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .frame(height: KeyboardDesign.Metrics.suggestionHeight * scale)
+        }
+        .scaleEffect(isPressed ? 0.97 : 1)
+        .transaction { $0.animation = nil }
+        .contentShape(.rect)
+        .onHover { isHovered = $0 }
     }
 }
