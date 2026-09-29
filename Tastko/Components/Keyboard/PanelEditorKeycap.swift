@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - PanelEditorKeycap
 struct PanelEditorKeycap: View {
     let button: PanelEditorButton
-    let presentation: ResolvedKeyPresentation
+    let presentation: ResolvedKey
     let scale: CGFloat
     let isPressed: Bool
     let isHovered: Bool

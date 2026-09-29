@@ -185,7 +185,7 @@ struct MainWindowContent: View {
     }
 
     private func selectPanel(_ panel: PanelEditorPanel) {
-        keyboardService.releaseAllModifiers()
+        keyboardService.releaseAll()
         selectedPanelIdentifier = panel.id
         floatingWindowController.updateSettings()
     }

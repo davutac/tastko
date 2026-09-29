@@ -129,7 +129,7 @@ struct SoundServiceTests {
 }
 
 // MARK: - FakeSystemSoundPlayer
-private final class FakeSystemSoundPlayer: SystemSoundPlaying {
+final class FakeSystemSoundPlayer: SystemSoundPlaying {
     private let soundID: SystemSoundID?
 
     private(set) var createdURLs: [URL] = []

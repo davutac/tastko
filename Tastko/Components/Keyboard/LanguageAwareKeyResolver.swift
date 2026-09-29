@@ -1,14 +1,5 @@
 import Foundation
 
-// MARK: - ResolvedKeyPresentation
-nonisolated struct ResolvedKeyPresentation: Equatable {
-    let title: String
-    let secondaryTitle: String?
-    let leftClickAction: KeyAction
-    let rightClickAction: KeyAction
-    var isDeadKey = false
-}
-
 // MARK: - KeyboardLanguageLayout
 nonisolated enum KeyboardLanguageLayout: Equatable {
     case base
@@ -89,8 +80,8 @@ nonisolated enum LanguageAwareKeyResolver {
         leftClickAction: KeyAction,
         rightClickAction: KeyAction,
         languageContext: KeyboardLanguageContext
-    ) -> ResolvedKeyPresentation {
-        let basePresentation = ResolvedKeyPresentation(
+    ) -> ResolvedKey {
+        let basePresentation = ResolvedKey(
             title: title,
             secondaryTitle: secondaryTitle.isEmpty ? nil : secondaryTitle,
             leftClickAction: leftClickAction,
@@ -112,7 +103,7 @@ nonisolated enum LanguageAwareKeyResolver {
             overlay: overlay
         )
 
-        return ResolvedKeyPresentation(
+        return ResolvedKey(
             title: overlay.title,
             secondaryTitle: resolvedSecondaryTitle(
                 currentAction: rightClickAction,

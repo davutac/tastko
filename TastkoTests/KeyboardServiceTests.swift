@@ -9,7 +9,7 @@ import Testing
 @MainActor
 struct KeyboardServiceTests {
     // MARK: - Lock-Screen Input
-    @Test func lockedInputUsesSystemFocusWithoutReadingFieldsOrRetainingKeyReceipts() async throws {
+    @Test func lockedInputUsesSystemFocusWithoutReadingFieldsOrRetainingKeyReceipts() throws {
         let resolver = FakeKeyboardTargetResolver(error: AccessibilityFocusError.secureTextInput)
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
@@ -20,9 +20,9 @@ struct KeyboardServiceTests {
         var predictionNotifications = 0
         service.inputDidChange = { predictionNotifications += 1 }
         service.setScreenLocked(true, allowsInput: true)
-        try await service.press(.x)
-        try await service.press(.delete)
-        let receipt = try await service.type("ä")
+        try service.tap(KeyStroke(.x))
+        try service.tap(KeyStroke(.delete))
+        let receipt = try service.type("ä")
         #expect(
             poster.events == [
                 .key(.x, [], true), .key(.x, [], false),
@@ -37,7 +37,7 @@ struct KeyboardServiceTests {
         #expect(predictionNotifications == 0)
     }
 
-    @Test func lockedModifiersStillProducePairedChordEvents() async throws {
+    @Test func lockedModifiersStillProducePairedChordEvents() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(
@@ -47,8 +47,8 @@ struct KeyboardServiceTests {
             canPostEvents: { true }
         )
         service.setScreenLocked(true, allowsInput: true)
-        try service.toggleOneShotModifier(.leftShift)
-        try await service.perform(.keyStroke(KeyStroke(.x)))
+        try service.toggleLatch(.leftShift)
+        try service.tap(KeyStroke(.x, modifiers: [.shift]))
         #expect(
             poster.events == [
                 .key(.leftShift, [.shift], true),
@@ -56,10 +56,10 @@ struct KeyboardServiceTests {
                 .key(.leftShift, [], false),
             ]
         )
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
     }
 
-    @Test func lockedPermissionDenialPostsNothingAndDoesNotResolveAnyTarget() async {
+    @Test func lockedPermissionDenialPostsNothingAndDoesNotResolveAnyTarget() {
         let resolver = FakeKeyboardTargetResolver(error: AccessibilityFocusError.secureTextInput)
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
@@ -68,23 +68,21 @@ struct KeyboardServiceTests {
             canPostEvents: { false }
         )
         service.setScreenLocked(true, allowsInput: true)
-        await #expect(throws: KeyboardServiceError.self) { try await service.type("x") }
-        await #expect(throws: KeyboardServiceError.self) { try await service.press(.x) }
+        #expect(throws: KeyboardServiceError.self) { try service.type("x") }
+        #expect(throws: KeyboardServiceError.self) { try service.tap(KeyStroke(.x)) }
         #expect(throws: KeyboardServiceError.accessibility(.accessibilityNotAuthorized)) {
-            try service.toggleOneShotModifier(.leftShift)
+            try service.toggleLatch(.leftShift)
         }
         #expect(throws: KeyboardServiceError.accessibility(.accessibilityNotAuthorized)) {
-            try service.beginFunctionPress()
+            try service.toggleFunction()
         }
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.heldModifiers.isEmpty)
         #expect(poster.events.isEmpty)
         #expect(resolver.resolveCount == 0)
     }
 
-    @Test func lockedModeRejectsQueuedPredictionsAndUnlockRestoresSecureTargetExclusion()
-        async throws
-    {
+    @Test func lockedModeRejectsQueuedPredictionsAndUnlockRestoresSecureTargetExclusion() throws {
         let resolver = FakeKeyboardTargetResolver(error: AccessibilityFocusError.secureTextInput)
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
@@ -92,19 +90,19 @@ struct KeyboardServiceTests {
             eventPoster: poster,
             canPostEvents: { true }
         )
-        try service.toggleOneShotModifier(.leftCommand)
+        try service.toggleLatch(.leftCommand)
         let beforeLock = service.inputSession
         service.setScreenLocked(true, allowsInput: true)
         #expect(service.inputSession != beforeLock)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(throws: KeyboardServiceError.self) {
-            try service.type("old suggestion", toValidatedTarget: keyboardServiceTarget())
+            try service.insertPrediction("old suggestion", into: keyboardServiceTarget())
         }
         let lockedSession = service.inputSession
         service.setScreenLocked(false, allowsInput: false)
         #expect(service.inputSession != lockedSession)
-        await #expect(throws: KeyboardServiceError.accessibility(.secureTextInput)) {
-            try await service.type("x")
+        #expect(throws: KeyboardServiceError.accessibility(.secureTextInput)) {
+            try service.type("x")
         }
         #expect(
             poster.events == [.key(.leftCommand, [.command], true), .key(.leftCommand, [], false)]
@@ -113,19 +111,17 @@ struct KeyboardServiceTests {
     }
 
     // MARK: - Function Toolbar
-    @Test func functionToolbarAfterFnReleaseConsumesOnlyStickyModifiers()
-        async throws
-    {
+    @Test func functionToolbarKeyAfterFnReleaseCarriesOnlyLatchedModifiers() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(target: keyboardServiceTarget()),
             eventPoster: poster
         )
-        try service.toggleFunctionKey()
-        try service.toggleFunctionKey()
-        try service.toggleOneShotModifier(.leftCommand)
-        try await service.pressFunctionToolbarKey(.f3)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        try service.toggleFunction()
+        try service.toggleFunction()
+        try service.toggleLatch(.leftCommand)
+        try service.tap(KeyStroke(.f3, modifiers: service.modifierFlags))
+        #expect(service.latchedModifiers.isEmpty)
         #expect(
             poster.events == [
                 .key(.function, [.function], true), .key(.function, [], false),
@@ -144,20 +140,20 @@ struct KeyboardServiceTests {
             eventPoster: poster,
             systemControlPerformer: performer
         )
-        try service.toggleOneShotModifier(.leftShift)
-        try await service.performSystemControl(.volumeDown)
+        try service.toggleLatch(.leftShift)
+        try await service.perform(.volumeDown)
         #expect(performer.controls == [.volumeDown])
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
         performer.shouldFail = true
         await #expect(throws: KeyboardServiceError.deliveryFailed("System control unavailable")) {
-            try await service.performSystemControl(.brightnessUp)
+            try await service.perform(.brightnessUp)
         }
         #expect(service.lastError == .deliveryFailed("System control unavailable"))
     }
 
     // MARK: - Modifier Posting Failures
-    @Test func failedStickyModifierDownDoesNotLatchAndCanBeRetried() throws {
+    @Test func failedLatchDownDoesNotLatchAndCanBeRetried() throws {
         let poster = FakeKeyboardEventPoster()
         poster.failingKeyPostAttempts = [1]
         let service = KeyboardService(
@@ -165,34 +161,34 @@ struct KeyboardServiceTests {
             eventPoster: poster
         )
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.toggleOneShotModifier(.leftShift)
+            try service.toggleLatch(.leftShift)
         }
         #expect(service.lastError == .eventCreationFailed)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(poster.events.isEmpty)
-        try service.toggleOneShotModifier(.leftShift)
-        #expect(service.activeOneShotModifiers == [.leftShift])
+        try service.toggleLatch(.leftShift)
+        #expect(service.latchedModifiers == [.leftShift])
         #expect(service.lastError == nil)
         #expect(poster.events == [.key(.leftShift, [.shift], true)])
     }
 
-    // MARK: - Sticky Release Failure
-    @Test func failedStickyModifierUpRetainsLatchForExplicitRetry() throws {
+    // MARK: - Latch Release Failure
+    @Test func failedLatchUpRetainsLatchForExplicitRetry() throws {
         let poster = FakeKeyboardEventPoster()
         poster.failingKeyPostAttempts = [2]
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftShift)
+        try service.toggleLatch(.leftShift)
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.toggleOneShotModifier(.leftShift)
+            try service.toggleLatch(.leftShift)
         }
         #expect(service.lastError == .eventCreationFailed)
-        #expect(service.activeOneShotModifiers == [.leftShift])
+        #expect(service.latchedModifiers == [.leftShift])
         #expect(poster.events == [.key(.leftShift, [.shift], true)])
-        try service.toggleOneShotModifier(.leftShift)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        try service.toggleLatch(.leftShift)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.lastError == nil)
         #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
     }
@@ -205,13 +201,12 @@ struct KeyboardServiceTests {
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftShift)
-        let modifiers = service.consumeActiveOneShotModifiers()
+        try service.toggleLatch(.leftShift)
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.press(KeyStroke(.a), latchedModifiers: modifiers)
+            try service.tap(KeyStroke(.a, modifiers: [.shift]))
         }
         #expect(service.lastError == .eventCreationFailed)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(poster.keyPostAttempts == 5)
         #expect(
             poster.events == [
@@ -220,7 +215,7 @@ struct KeyboardServiceTests {
                 .key(.leftShift, [], false),
             ]
         )
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(poster.keyPostAttempts == 5)
     }
 
@@ -232,11 +227,11 @@ struct KeyboardServiceTests {
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftCommand)
-        try service.toggleOneShotModifier(.leftShift)
-        service.releaseAllModifiers()
+        try service.toggleLatch(.leftCommand)
+        try service.toggleLatch(.leftShift)
+        service.releaseAll()
         #expect(service.lastError == .eventCreationFailed)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(
             poster.events == [
                 .key(.leftCommand, [.command], true),
@@ -244,10 +239,10 @@ struct KeyboardServiceTests {
                 .key(.leftCommand, [.shift], false),
             ]
         )
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(poster.events.last == .key(.leftShift, [], false))
         #expect(poster.keyPostAttempts == 5)
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(poster.keyPostAttempts == 5)
     }
 
@@ -257,18 +252,17 @@ struct KeyboardServiceTests {
         let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget())
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-        try service.type("llo ", toValidatedTarget: target)
+        try service.insertPrediction("llo ", into: target)
         #expect(resolver.resolveCount == 0)
         #expect(poster.events == [.text("llo ", 4321, .textElement)])
     }
 
-    // MARK: - Keys
     @Test func predictionReplacementUsesOnlyValidatedTarget() throws {
         let target = keyboardServiceTarget(processIdentifier: 4321)
         let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget())
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-        try service.type("hello ", deletingBackward: 3, toValidatedTarget: target)
+        try service.insertPrediction("hello ", deletingBackward: 3, into: target)
         #expect(resolver.resolveCount == 0)
         #expect(poster.events == [.replacement(3, "hello ", 4321)])
     }
@@ -346,76 +340,65 @@ struct KeyboardServiceTests {
         #expect(try decoder.decode([KeyAction].self, from: data) == actions)
     }
 
-    // MARK: - Key Actions
-    @Test func performNoneRecordsNoOperationWithoutResolvingTarget() async throws {
-        let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget())
+    // MARK: - Keystrokes
+    @Test func tapPostsExactFlagsWithoutResolvingTarget() throws {
+        let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget(route: .window))
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        let receipt = try await service.perform(.none)
+        let receipt = try service.tap(KeyStroke(.a, modifiers: [.shift]))
 
-        #expect(resolver.resolveCount == 0)
-        #expect(poster.events.isEmpty)
-        #expect(receipt.method == .noOperation)
-        #expect(receipt.summary == "key action none")
-        #expect(service.lastReceipt == receipt)
-    }
-
-    @Test func performTextRoutesThroughTextInput() async throws {
-        let target = keyboardServiceTarget(route: .textElement)
-        let resolver = FakeKeyboardTargetResolver(target: target)
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-
-        let receipt = try await service.perform(.text("Hello"))
-
-        #expect(resolver.resolveCount == 1)
-        #expect(poster.events == [.text("Hello", target.processIdentifier, .textElement)])
-        #expect(receipt.method == .textEvent)
-    }
-
-    @Test func performKeyStrokeRoutesThroughKeystrokeInput() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-
-        let receipt = try await service.perform(.keyStroke(KeyStroke(.a, modifiers: [.shift])))
-
-        #expect(
-            poster.events == [
-                .key(.a, [.shift], true),
-                .key(.a, [.shift], false),
-            ]
-        )
+        #expect(poster.events == [.key(.a, [.shift], true), .key(.a, [.shift], false)])
         #expect(receipt.method == .keyEvent)
         #expect(receipt.route == nil)
         #expect(receipt.processIdentifier == nil)
         #expect(resolver.resolveCount == 0)
     }
 
-    @Test func oneShotModifierFirstClickPostsDownAndLatches() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
+    @Test func shortcutTapPressesModifierKeysAroundTheKey() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+
+        try service.tap(KeyStroke(.a, modifiers: [.command, .shift]))
+
+        #expect(
+            poster.events == [
+                .key(.leftShift, [.shift], true),
+                .key(.leftCommand, [.command, .shift], true),
+                .key(.a, [.command, .shift], true),
+                .key(.a, [.command, .shift], false),
+                .key(.leftCommand, [.shift], false),
+                .key(.leftShift, [], false),
+            ]
+        )
+    }
+
+    // MARK: - Latched Modifiers
+    @Test func latchFirstTogglePostsDownAndLatches() throws {
+        let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget(route: .window))
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        let receipt = try await service.perform(.modifier(.leftShift), behavior: .oneShot)
+        let receipt = try service.toggleLatch(.leftShift)
 
         #expect(resolver.resolveCount == 0)
         #expect(poster.events == [.key(.leftShift, [.shift], true)])
-        #expect(service.activeOneShotModifiers == [.leftShift])
+        #expect(service.latchedModifiers == [.leftShift])
         #expect(receipt.method == .modifierState)
     }
 
-    @Test func oneShotModifierAppliesToNextKeyStrokeAndReleases() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
+    @Test func latchAppliesToNextStrokeAndReleasesAfterIt() throws {
         let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
 
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        try await service.perform(.keyStroke(KeyStroke(.s)))
+        try service.toggleLatch(.leftShift)
+        try service.tap(KeyStroke(.s, modifiers: [.shift]))
 
         #expect(
             poster.events == [
@@ -425,182 +408,147 @@ struct KeyboardServiceTests {
                 .key(.leftShift, [], false),
             ]
         )
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
     }
 
-    @Test func directPressUsesActiveOneShotModifierWithoutReleasingIt() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
+    @Test func releaseAllPostsUpAndClearsLatches() throws {
+        let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget(route: .window))
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        try await service.press(.a)
-
-        #expect(
-            poster.events == [
-                .key(.leftShift, [.shift], true),
-                .key(.a, [.shift], true),
-                .key(.a, [.shift], false),
-            ]
-        )
-        #expect(service.activeOneShotModifiers == [.leftShift])
-        service.releaseAllModifiers()
-        #expect(
-            poster.events == [
-                .key(.leftShift, [.shift], true),
-                .key(.a, [.shift], true), .key(.a, [.shift], false),
-                .key(.leftShift, [], false),
-            ]
-        )
-        #expect(service.activeOneShotModifiers.isEmpty)
-    }
-
-    @Test func releaseAllModifiersPostsUpAndClearsVirtualState() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        service.releaseAllModifiers()
+        try service.toggleLatch(.leftShift)
+        service.releaseAll()
 
         #expect(resolver.resolveCount == 0)
         #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
     }
 
-    @Test func activeOneShotModifierSecondClickPostsUpAndUnlatches() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-
-        #expect(resolver.resolveCount == 0)
-        #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
-        #expect(service.activeOneShotModifiers.isEmpty)
-    }
-
-    // MARK: - Latch Transfer
-    @Test func consumingLatchKeepsModifierDownUntilSynchronousStrokeCompletes() throws {
+    @Test func latchSecondTogglePostsUpAndUnlatches() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftShift)
 
-        let consumedModifiers = service.consumeActiveOneShotModifiers()
+        try service.toggleLatch(.leftShift)
+        try service.toggleLatch(.leftShift)
 
-        #expect(consumedModifiers == [.leftShift])
-        #expect(service.activeOneShotModifiers.isEmpty)
-        #expect(poster.events == [.key(.leftShift, [.shift], true)])
+        #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
+        #expect(service.latchedModifiers.isEmpty)
+    }
 
-        try service.press(KeyStroke(.a), latchedModifiers: consumedModifiers)
+    @Test func consumedLatchCanBeLatchedAgain() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+        try service.toggleLatch(.leftShift)
+        try service.tap(KeyStroke(.a, modifiers: [.shift]))
+        try service.toggleLatch(.leftShift)
 
+        #expect(service.latchedModifiers == [.leftShift])
         #expect(
             poster.events == [
                 .key(.leftShift, [.shift], true),
                 .key(.a, [.shift], true), .key(.a, [.shift], false),
                 .key(.leftShift, [], false),
-            ]
-        )
-        try service.toggleOneShotModifier(.leftShift)
-        #expect(service.activeOneShotModifiers == [.leftShift])
-        #expect(poster.events.last == .key(.leftShift, [.shift], true))
-    }
-
-    @Test func multipleOneShotModifiersStackAndReleaseAfterNextKeyStroke() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        try await service.perform(.modifier(.leftCommand), behavior: .oneShot)
-        try await service.perform(.keyStroke(KeyStroke(.s)))
-
-        #expect(
-            poster.events == [
                 .key(.leftShift, [.shift], true),
-                .key(
-                    .leftCommand,
-                    [.command, .shift],
-                    true
-                ),
-                .key(.s, [.command, .shift], true),
-                .key(.s, [.command, .shift], false),
-                .key(.leftCommand, [.shift], false),
-                .key(.leftShift, [], false),
             ]
         )
-        #expect(service.activeOneShotModifiers.isEmpty)
     }
 
-    @Test func stickyModifierChordPostsDownImmediatelyAndReleasesInReverseOrder() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
+    @Test func latchesStackAndReleaseInReverseOrderAfterTheStroke() throws {
+        let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget(route: .window))
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        try await service.perform(.modifier(.leftCommand), behavior: .oneShot)
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
+        try service.toggleLatch(.leftCommand)
+        try service.toggleLatch(.leftShift)
 
-        #expect(resolver.resolveCount == 0)
         #expect(
             poster.events == [
                 .key(.leftCommand, [.command], true),
                 .key(.leftShift, [.command, .shift], true),
             ]
         )
-        #expect(service.activeOneShotModifiers == [.leftCommand, .leftShift])
+        #expect(service.latchedModifiers == [.leftCommand, .leftShift])
 
-        try await service.perform(.keyStroke(KeyStroke(.s)))
+        try service.tap(KeyStroke(.s, modifiers: [.command, .shift]))
 
         #expect(resolver.resolveCount == 0)
         #expect(
-            poster.events == [
-                .key(.leftCommand, [.command], true),
-                .key(
-                    .leftShift,
-                    [.command, .shift],
-                    true
-                ),
+            Array(poster.events.suffix(4)) == [
                 .key(.s, [.command, .shift], true),
                 .key(.s, [.command, .shift], false),
                 .key(.leftShift, [.command], false),
                 .key(.leftCommand, [], false),
             ]
         )
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
     }
 
-    @Test func globalHotkeyDoesNotRequireFocusedApplicationResolution() async throws {
+    @Test func latchNotCarriedByTheStrokeIsReleasedBeforeIt() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+        try service.toggleLatch(.leftShift)
+        try service.tap(KeyStroke(.a))
+
+        #expect(
+            poster.events == [
+                .key(.leftShift, [.shift], true), .key(.leftShift, [], false),
+                .key(.a, [], true), .key(.a, [], false),
+            ]
+        )
+        #expect(service.latchedModifiers.isEmpty)
+    }
+
+    @Test func globalHotkeyDoesNotRequireFocusedApplicationResolution() throws {
         let resolver = FakeKeyboardTargetResolver(
             error: AccessibilityFocusError.focusedApplicationUnavailable
         )
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        try await service.perform(.modifier(.leftCommand), behavior: .oneShot)
-        try await service.perform(.modifier(.leftShift), behavior: .oneShot)
-        try await service.perform(.keyStroke(KeyStroke(.s)))
+        try service.toggleLatch(.leftCommand)
+        try service.toggleLatch(.leftShift)
+        try service.tap(KeyStroke(.s, modifiers: [.command, .shift]))
 
         #expect(resolver.resolveCount == 0)
         #expect(poster.events.count == 6)
     }
 
+    // MARK: - Modifier Taps
+    @Test func modifierTapPressesAndReleasesWithoutLatching() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+        try service.tapModifier(.leftOption)
+        #expect(
+            poster.events == [.key(.leftOption, [.option], true), .key(.leftOption, [], false)]
+        )
+        #expect(service.latchedModifiers.isEmpty)
+
+        try service.toggleLatch(.leftOption)
+        try service.tapModifier(.leftOption)
+        #expect(service.latchedModifiers == [.leftOption])
+        #expect(poster.events.count == 3)
+    }
+
     // MARK: - Text Input
-    @Test func typePostsTextToFocusedTarget() async throws {
+    @Test func typePostsTextToFocusedTarget() throws {
         let target = keyboardServiceTarget(route: .textElement)
         let resolver = FakeKeyboardTargetResolver(target: target)
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        let receipt = try await service.type("Hello")
+        let receipt = try service.type("Hello")
 
         #expect(resolver.resolveCount == 1)
         #expect(poster.events == [.text("Hello", target.processIdentifier, .textElement)])
@@ -611,27 +559,46 @@ struct KeyboardServiceTests {
         #expect(service.lastReceipt == receipt)
     }
 
-    @Test func typeEmptyTextDoesNotResolveOrPost() async throws {
+    @Test func typeConsumesLatchedModifiersAfterTheText() throws {
+        let target = keyboardServiceTarget()
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(target: target),
+            eventPoster: poster
+        )
+        try service.toggleLatch(.leftShift)
+        try service.type("é")
+        #expect(
+            poster.events == [
+                .key(.leftShift, [.shift], true),
+                .text("é", target.processIdentifier, .textElement),
+                .key(.leftShift, [], false),
+            ]
+        )
+        #expect(service.latchedModifiers.isEmpty)
+    }
+
+    @Test func typeEmptyTextDoesNotResolveOrPost() throws {
         let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget())
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        let receipt = try await service.type("")
+        let receipt = try service.type("")
 
         #expect(resolver.resolveCount == 0)
         #expect(poster.events.isEmpty)
         #expect(receipt.method == .noOperation)
     }
 
-    @Test func typeRecordsResolverErrors() async {
+    @Test func typeRecordsResolverErrors() {
         let resolver = FakeKeyboardTargetResolver(
             error: AccessibilityFocusError.accessibilityNotAuthorized
         )
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
 
-        await #expect(throws: KeyboardServiceError.self) {
-            try await service.type("Hello")
+        #expect(throws: KeyboardServiceError.self) {
+            try service.type("Hello")
         }
 
         #expect(poster.events.isEmpty)
@@ -639,7 +606,7 @@ struct KeyboardServiceTests {
     }
 
     // MARK: - Physical Modifiers
-    @Test func physicalModifiersAreIncludedWithoutSyntheticModifierTransitions() async throws {
+    @Test func physicallyHeldModifierIsNotPressedAgain() throws {
         let physical = PhysicalKeyboardState(
             readHardware: {
                 PhysicalKeyboardSnapshot(pressedKeys: [.rightOption], modifiers: [.rightOption])
@@ -653,14 +620,14 @@ struct KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        try service.toggleOneShotModifier(.leftOption)
-        try await service.perform(.keyStroke(KeyStroke(.two)))
+        try service.toggleLatch(.leftOption)
+        try service.tap(KeyStroke(.two, modifiers: [.option]))
         #expect(poster.events == [.key(.two, [.option], true), .key(.two, [.option], false)])
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.effectiveModifiers == [.rightOption])
     }
 
-    @Test func syntheticModifierReleasePreservesPhysicallyHeldFlags() async throws {
+    @Test func syntheticModifierReleasePreservesPhysicallyHeldFlags() throws {
         let physical = PhysicalKeyboardState(
             readHardware: {
                 PhysicalKeyboardSnapshot(pressedKeys: [.leftOption], modifiers: [.leftOption])
@@ -674,8 +641,8 @@ struct KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        try service.toggleOneShotModifier(.rightShift)
-        try await service.perform(.keyStroke(KeyStroke(.two)))
+        try service.toggleLatch(.rightShift)
+        try service.tap(KeyStroke(.two, modifiers: [.option, .shift]))
         #expect(
             poster.events == [
                 .key(.rightShift, [.option, .shift], true),
@@ -685,11 +652,9 @@ struct KeyboardServiceTests {
         )
     }
 
-    @Test func resolvedCapsLockRightClickDoesNotReapplyPhysicalCapsLock() async throws {
+    @Test func tapDoesNotAddPhysicalCapsLockToResolvedStroke() throws {
         let physical = PhysicalKeyboardState(
-            readHardware: {
-                PhysicalKeyboardSnapshot(isCapsLockEnabled: true)
-            },
+            readHardware: { PhysicalKeyboardSnapshot(isCapsLockEnabled: true) },
             canObserve: { true }
         )
         physical.refresh()
@@ -699,37 +664,9 @@ struct KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        #expect(service.effectiveCapsLockEnabled)
-        try service.press(
-            KeyStroke(.a),
-            latchedModifiers: [],
-            modifiersAreResolved: true
-        )
+        #expect(service.isCapsLockEnabled)
+        try service.tap(KeyStroke(.a))
         #expect(poster.events == [.key(.a, [], true), .key(.a, [], false)])
-    }
-
-    // MARK: - Keystroke Input
-    @Test func pressPostsKeyDownAndKeyUp() async throws {
-        let target = keyboardServiceTarget(route: .window)
-        let resolver = FakeKeyboardTargetResolver(target: target)
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(targetResolver: resolver, eventPoster: poster)
-
-        let receipt = try await service.press(.a, modifiers: [.command, .shift])
-
-        #expect(
-            poster.events == [
-                .key(.leftShift, [.shift], true),
-                .key(.leftCommand, [.command, .shift], true),
-                .key(.a, [.command, .shift], true),
-                .key(.a, [.command, .shift], false),
-                .key(.leftCommand, [.shift], false),
-                .key(.leftShift, [], false),
-            ]
-        )
-        #expect(receipt.method == .keyEvent)
-        #expect(receipt.route == nil)
-        #expect(resolver.resolveCount == 0)
     }
 
     // MARK: - Shortcut Modifier Keys
@@ -740,11 +677,7 @@ struct KeyboardServiceTests {
             eventPoster: poster
         )
 
-        try service.press(
-            KeyStroke(.equal, modifiers: [.control, .command]),
-            latchedModifiers: [],
-            modifiersAreResolved: true
-        )
+        try service.tap(KeyStroke(.equal, modifiers: [.control, .command]))
 
         #expect(
             poster.events == [
@@ -765,13 +698,8 @@ struct KeyboardServiceTests {
             eventPoster: poster
         )
 
-        try service.toggleOneShotModifier(.rightCommand)
-        let latched = service.consumeActiveOneShotModifiers()
-        try service.press(
-            KeyStroke(.equal, modifiers: [.control, .command]),
-            latchedModifiers: latched,
-            modifiersAreResolved: true
-        )
+        try service.toggleLatch(.rightCommand)
+        try service.tap(KeyStroke(.equal, modifiers: [.control, .command]))
 
         #expect(
             poster.events == [
@@ -792,11 +720,7 @@ struct KeyboardServiceTests {
             eventPoster: poster
         )
 
-        try service.press(
-            KeyStroke(.a, modifiers: [.shift]),
-            latchedModifiers: [],
-            modifiersAreResolved: true
-        )
+        try service.tap(KeyStroke(.a, modifiers: [.shift]))
 
         #expect(poster.events == [.key(.a, [.shift], true), .key(.a, [.shift], false)])
     }

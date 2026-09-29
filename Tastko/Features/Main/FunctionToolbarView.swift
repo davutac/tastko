@@ -4,7 +4,7 @@ import SwiftUI
 struct FunctionToolbarView: View {
     let scale: CGFloat
     @Environment(\.keyboardService) private var keyboardService
-    @Environment(\.soundService) private var soundService
+    @Environment(\.keyInputController) private var input
 
     // MARK: - Body
     var body: some View {
@@ -15,8 +15,7 @@ struct FunctionToolbarView: View {
                 )
             ) { item in
                 Button {
-                    soundService.play(.keyPress)
-                    perform(item.action)
+                    input.press(item)
                 } label: {
                     if let symbol = item.symbol {
                         Image(systemName: symbol)
@@ -41,19 +40,5 @@ struct FunctionToolbarView: View {
         }
         .padding(.horizontal, KeyboardDesign.Metrics.panelInset + KeyboardDesign.Metrics.keyInset)
         .padding(.vertical, KeyboardDesign.Metrics.functionToolbarVerticalInset * scale)
-    }
-
-    // MARK: - Actions
-    private func perform(_ action: FunctionToolbarAction) {
-        let inputSession = keyboardService.inputSession
-        Task {
-            guard keyboardService.inputSession == inputSession else { return }
-            switch action {
-            case .key(let key):
-                _ = try? await keyboardService.pressFunctionToolbarKey(key)
-            case .system(let control):
-                _ = try? await keyboardService.performSystemControl(control)
-            }
-        }
     }
 }

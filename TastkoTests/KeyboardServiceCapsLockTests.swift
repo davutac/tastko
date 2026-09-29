@@ -34,26 +34,26 @@ extension KeyboardServiceTests {
         for enabled in [true, false, true] {
             systemLock = enabled
             physical.refresh()
-            #expect(service.effectiveCapsLockEnabled == enabled)
+            #expect(service.isCapsLockEnabled == enabled)
             #expect(!physical.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
             let presentation = ModifierAwareKeyResolver.presentation(
-                from: ResolvedKeyPresentation(
+                from: ResolvedKey(
                     title: "A",
                     secondaryTitle: nil,
                     leftClickAction: .keyStroke(KeyStroke(.a)),
                     rightClickAction: .keyStroke(KeyStroke(.a, modifiers: [.shift]))
                 ),
                 translator: translator,
-                activeOneShotModifiers: service.activeOneShotModifiers,
+                latchedModifiers: service.latchedModifiers,
                 physicalModifiers: service.heldModifiers,
-                isCapsLockEnabled: service.effectiveCapsLockEnabled
+                isCapsLockEnabled: service.isCapsLockEnabled
             )
             #expect(presentation.title == (enabled ? "A" : "a"))
             guard case .keyStroke(let stroke) = presentation.leftClickAction else {
                 Issue.record("Expected a letter keystroke")
                 return
             }
-            try service.press(stroke, latchedModifiers: [], modifiersAreResolved: true)
+            try service.tap(stroke)
             let flags: KeyModifiers = enabled ? [.capsLock] : []
             #expect(
                 Array(poster.events.suffix(2)) == [
@@ -63,16 +63,16 @@ extension KeyboardServiceTests {
         }
         try service.toggleCapsLock()
         physical.refresh()
-        #expect(service.effectiveCapsLockEnabled == false)
+        #expect(service.isCapsLockEnabled == false)
         #expect(!physical.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
         try service.toggleCapsLock()
         physical.refresh()
-        #expect(service.effectiveCapsLockEnabled)
+        #expect(service.isCapsLockEnabled)
         #expect(!physical.snapshot.isPressed(.keyStroke(KeyStroke(.capsLock))))
     }
 
     // MARK: - Caps Lock
-    @Test func capsLockTogglesInjectedSystemStateAndPreservesStickyModifiers() async throws {
+    @Test func capsLockTogglesInjectedSystemStateAndPreservesLatches() throws {
         let resolver = FakeKeyboardTargetResolver(target: keyboardServiceTarget())
         let poster = FakeKeyboardEventPoster()
         var capsLockEnabled = false
@@ -92,7 +92,7 @@ extension KeyboardServiceTests {
             }
         )
 
-        let receipt = try await service.perform(.keyStroke(KeyStroke(.capsLock)))
+        let receipt = try service.tap(KeyStroke(.capsLock))
 
         #expect(receipt.method == .keyEvent)
         #expect(
@@ -104,10 +104,10 @@ extension KeyboardServiceTests {
         #expect(physical.snapshot.isCapsLockEnabled)
         #expect(toggleCount == 1)
 
-        try service.toggleOneShotModifier(.leftShift)
-        try await service.perform(.text("test"))
-        try await service.perform(.keyStroke(KeyStroke(.space)))
-        service.releaseAllModifiers()
+        try service.toggleLatch(.leftShift)
+        try service.type("test")
+        try service.tap(KeyStroke(.space))
+        service.releaseAll()
         #expect(service.isCapsLockEnabled)
         #expect(toggleCount == 1)
         #expect(
@@ -116,23 +116,23 @@ extension KeyboardServiceTests {
                 .key(.leftShift, [.shift, .capsLock], true),
                 .text("test", 1234, .textElement),
                 .key(.leftShift, [.capsLock], false),
-                .key(.space, [.capsLock], true), .key(.space, [.capsLock], false),
+                .key(.space, [], true), .key(.space, [], false),
             ]
         )
 
-        try service.toggleOneShotModifier(.leftShift)
-        try await service.perform(.keyStroke(KeyStroke(.capsLock)))
+        try service.toggleLatch(.leftShift)
+        try service.tap(KeyStroke(.capsLock))
         #expect(service.isCapsLockEnabled == false)
         #expect(capsLockEnabled == false)
         #expect(toggleCount == 2)
-        #expect(service.activeOneShotModifiers == [.leftShift])
+        #expect(service.latchedModifiers == [.leftShift])
         #expect(
             Array(poster.events.suffix(3)) == [
                 .key(.leftShift, [.shift, .capsLock], true),
                 .key(.capsLock, [.shift], true), .key(.capsLock, [.shift], false),
             ]
         )
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(poster.events.last == .key(.leftShift, [], false))
     }
 
@@ -156,22 +156,24 @@ extension KeyboardServiceTests {
         try service.toggleCapsLock()
 
         for trigger in [KeyActionTrigger.leftClick, .rightClick, .leftClick] {
-            try service.toggleOneShotModifier(.leftShift)
+            try service.toggleLatch(.leftShift)
             let action = KeyActionResolver.action(
                 for: trigger,
                 primaryAction: .keyStroke(KeyStroke(.a)),
                 secondaryAction: .keyStroke(KeyStroke(.a, modifiers: [.shift])),
-                activeOneShotModifiers: service.activeOneShotModifiers,
+                latchedModifiers: service.latchedModifiers,
                 isCapsLockEnabled: service.isCapsLockEnabled,
                 primaryTitle: "A"
             )
-            let modifiers = service.consumeActiveOneShotModifiers(for: action)
             guard case .keyStroke(let stroke) = action else {
                 Issue.record("Expected a letter keystroke")
                 return
             }
-            #expect(modifiers.isEmpty, "Resolved Caps Lock letter clicks must discard sticky Shift")
-            try service.press(stroke, latchedModifiers: modifiers, modifiersAreResolved: true)
+            #expect(
+                !stroke.modifiers.contains(.shift),
+                "Resolved Caps Lock letter clicks must discard latched Shift"
+            )
+            try service.tap(stroke)
             #expect(service.isCapsLockEnabled)
             #expect(capsLockEnabled)
         }
@@ -190,7 +192,7 @@ extension KeyboardServiceTests {
                 .key(.a, [.capsLock], true), .key(.a, [.capsLock], false),
             ]
         )
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
     }
 
     // MARK: - Caps Lock Failure

@@ -15,21 +15,15 @@ struct PanelEditorLayoutView: View {
 
             ZStack(alignment: .topLeading) {
                 ForEach(panel.visibleButtons) { button in
-                    PanelEditorButtonView(
-                        button: button,
-                        scale: scale,
-                        languageContext: KeyboardLanguageContext(
-                            language: keyboardLanguageService.selectedLanguage
+                    PanelEditorButtonView(button: button, scale: scale)
+                        .frame(
+                            width: button.frame.width * scale,
+                            height: button.frame.height * scale
                         )
-                    )
-                    .frame(
-                        width: button.frame.width * scale,
-                        height: button.frame.height * scale
-                    )
-                    .offset(
-                        x: (button.frame.minX - bounds.minX) * scale,
-                        y: (button.frame.minY - bounds.minY) * scale
-                    )
+                        .offset(
+                            x: (button.frame.minX - bounds.minX) * scale,
+                            y: (button.frame.minY - bounds.minY) * scale
+                        )
                 }
             }
             .frame(
@@ -42,8 +36,8 @@ struct PanelEditorLayoutView: View {
         .onAppear {
             keyboardLanguageService.refreshSelectedLanguage()
         }
-        .onDisappear { keyboardService.cancelKeyPresses() }
-        .onChange(of: panel.id) { keyboardService.cancelKeyPresses() }
+        .onDisappear { keyboardService.cancelPresses() }
+        .onChange(of: panel.id) { keyboardService.cancelPresses() }
     }
 
     // MARK: - Metrics

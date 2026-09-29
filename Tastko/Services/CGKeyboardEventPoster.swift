@@ -5,6 +5,13 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
     // Distinguish our posted events from physical or other applications' input.
     static let predictionEventTag: Int64 = 0x41_6962_6F61_7264
     private let source = CGEventSource(stateID: .combinedSessionState)
+    /// Masks posted keys so physical-key feedback ignores Tastko's own events.
+    private let physicalKeyboard: PhysicalKeyboardState
+
+    // MARK: - Initialization
+    init(physicalKeyboard: PhysicalKeyboardState? = nil) {
+        self.physicalKeyboard = physicalKeyboard ?? .shared
+    }
 
     // MARK: - System-Focus Text
     func postTextToSystemFocus(_ text: String) throws {
@@ -74,9 +81,9 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
     private func post(_ event: CGEvent, keyDown: Bool, to processIdentifier: pid_t? = nil) {
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         if let key = Key(rawValue: keyCode) {
-            PhysicalKeyboardState.shared.recordPostedKey(key, isDown: keyDown)
+            physicalKeyboard.recordPostedKey(key, isDown: keyDown)
         }
-        PhysicalKeyboardState.shared.recordPostedFlags(event.flags)
+        physicalKeyboard.recordPostedFlags(event.flags)
         if let processIdentifier {
             event.postToPid(processIdentifier)
         }
