@@ -2,34 +2,10 @@ import SwiftUI
 
 // MARK: - KeyboardDesign
 enum KeyboardDesign {
-    enum Palette {
-        static let error = Color("KeyboardError")
-        static let chassis = Color("KeyboardChassis")
-        static let chrome = Color("KeyboardChrome")
-        static let keyFill = Color("KeyboardKeyFill")
-        static let label = Color("KeyboardLabel")
-        static let secondaryLabel = Color("KeyboardSecondaryLabel")
-        static let border = Color("KeyboardBorder")
-        static let separator = Color("KeyboardSeparator")
-        static let deadKey = Color.orange
-        static let active = Color("KeyboardActive")
-
-        // MARK: - Imported Key Colors
-        static func imported(_ components: PanelEditorColorComponents?, fallback: Color) -> Color {
-            guard let components else { return fallback }
-            return Color(
-                .sRGB,
-                red: components.red,
-                green: components.green,
-                blue: components.blue,
-                opacity: components.alpha
-            )
-        }
-    }
-
     nonisolated enum Metrics {
         static let windowRadius: CGFloat = 16
-        static let keyRadius: CGFloat = 6
+        static let keySkirtHeight: CGFloat = 3
+        static let keyFaceInset: CGFloat = 2
         static let keyInset: CGFloat = 2
         static let panelInset: CGFloat = 5
         static let rowSpacing: CGFloat = 8

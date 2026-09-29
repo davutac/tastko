@@ -14,9 +14,10 @@ struct SettingsWindowConfiguration: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window else { return }
-            // Settings applies its expanded preference toolbar after attaching the content.
+            // Settings applies its preference toolbar after attaching the content; the
+            // sidebar layout needs the unified style instead.
             DispatchQueue.main.async { [weak window] in
-                window?.toolbarStyle = .unifiedCompact
+                window?.toolbarStyle = .unified
             }
         }
     }

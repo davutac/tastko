@@ -8,21 +8,21 @@ struct PanelEditorKeycap: View {
     let isPressed: Bool
     let isHovered: Bool
     let isActive: Bool
+    @Environment(\.keyboardPalette) private var palette
+    @Environment(\.keycapCorners) private var corners
 
     // MARK: - Body
     var body: some View {
         let keyShape = PanelEditorKeyShape(
             buttonShape: button.shape,
-            cornerRadius: KeyboardDesign.Metrics.keyRadius * scale
+            cornerRadius: corners.radius * scale,
+            frameInset: keyInset
         )
 
         ZStack(alignment: .topTrailing) {
             KeycapSurface(
                 shape: keyShape,
-                fill: KeyboardDesign.Palette.imported(
-                    button.backgroundColor,
-                    fallback: KeyboardDesign.Palette.keyFill
-                ),
+                fill: KeyboardPalette.imported(button.backgroundColor),
                 isPressed: isPressed,
                 isHovered: isHovered,
                 isActive: isActive,
@@ -34,12 +34,11 @@ struct PanelEditorKeycap: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
                 .foregroundStyle(
-                    KeyboardDesign.Palette.imported(
-                        button.foregroundColor,
-                        fallback: KeyboardDesign.Palette.label
-                    )
+                    KeyboardPalette.imported(button.foregroundColor) ?? palette.label
                 )
                 .padding(max(3, 4 * scale))
+                .padding(.leading, labelLeadingInset)
+                .keycapLabelInset(isPressed: isPressed)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let secondaryTitle = presentation.secondaryTitle {
@@ -47,24 +46,22 @@ struct PanelEditorKeycap: View {
                     .font(KeyboardDesign.Typography.secondaryKey(scale: scale))
                     .lineLimit(1)
                     .foregroundStyle(
-                        KeyboardDesign.Palette.imported(
-                            button.foregroundColor,
-                            fallback: KeyboardDesign.Palette.secondaryLabel
-                        )
+                        KeyboardPalette.imported(button.foregroundColor)
+                            ?? palette.secondaryLabel
                     )
-                    .padding(.top, max(1, 2 * scale))
-                    .padding(.trailing, max(2, 3 * scale))
+                    .padding(.top, max(2, 3 * scale))
+                    .padding(.trailing, max(3, 4 * scale))
             }
         }
         .overlay(alignment: .topLeading) {
             if isActive {
                 Circle()
-                    .fill(KeyboardDesign.Palette.active)
+                    .fill(palette.active)
                     .frame(width: max(4, 4 * scale), height: max(4, 4 * scale))
                     .padding(max(4, 6 * scale))
             }
         }
-        .padding(max(1, KeyboardDesign.Metrics.keyInset * scale))
+        .padding(keyInset)
         .scaleEffect(isPressed ? 0.97 : 1)
         .offset(y: isPressed ? max(1, scale) : 0)
         .transaction { $0.animation = nil }
@@ -72,7 +69,21 @@ struct PanelEditorKeycap: View {
         .accessibilityHidden(true)
     }
 
+    // MARK: - Metrics
+    private var keyInset: CGFloat {
+        max(1, KeyboardDesign.Metrics.keyInset * scale)
+    }
+
     // MARK: - Label
+    /// Centers an ISO Return label over its narrower lower part.
+    private var labelLeadingInset: CGFloat {
+        switch button.shape {
+        case .rectangle: 0
+        case .isoReturn:
+            button.frame.width * scale * PanelEditorISOEnterMetrics.lowerLeadingInsetFraction
+        }
+    }
+
     private var displayTitle: String {
         switch presentation.title {
         case "ISO Section": "§"

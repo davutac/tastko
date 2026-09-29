@@ -34,7 +34,6 @@ extension ChildWindowConfiguration {
             gap: 8,
             style: ChildWindowStyle(
                 background: AnyShapeStyle(Color.clear),
-                foreground: KeyboardDesign.Palette.label,
                 cornerRadius: 0,
                 borderWidth: 0,
                 contentInsets: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),

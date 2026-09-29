@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - AccessibilityStatusButton
 struct AccessibilityStatusButton: View {
     @Environment(\.accessibilityService) private var accessibilityService
+    @Environment(\.keyboardPalette) private var palette
 
     // MARK: - Body
     var body: some View {
@@ -39,7 +40,7 @@ struct AccessibilityStatusButton: View {
     // MARK: - Status
     private var statusColor: Color {
         accessibilityService.isAuthorized
-            ? KeyboardDesign.Palette.active : KeyboardDesign.Palette.error
+            ? palette.active : palette.error
     }
 
     private var accessibilityLabel: String {

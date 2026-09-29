@@ -7,6 +7,7 @@ struct LoginWindowKeyboardView: View {
     let keyboard: LoginWindowKeyboard
     @Environment(\.keyboardService) private var keyboardService
     @Environment(\.keyboardLanguageService) private var languageService
+    @Environment(\.keyboardPalette) private var palette
 
     // MARK: - Body
     var body: some View {
@@ -30,8 +31,7 @@ struct LoginWindowKeyboardView: View {
             PanelEditorLayoutView(panel: keyboard.panel)
                 .padding(KeyboardDesign.Metrics.panelInset)
         }
-        .foregroundStyle(KeyboardDesign.Palette.label)
-        .background(KeyboardDesign.Palette.chassis)
+        .background(palette.chassis)
         .clipShape(.rect(cornerRadius: KeyboardDesign.Metrics.windowRadius))
     }
 

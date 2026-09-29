@@ -69,7 +69,6 @@ final class ChildWindowController {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .foregroundStyle(style.foreground)
                 .background(style.background)
                 .clipShape(.rect(cornerRadius: max(0, style.cornerRadius)))
                 .overlay {

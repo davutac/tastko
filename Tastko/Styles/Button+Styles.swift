@@ -12,16 +12,18 @@ struct SubtleIconButtonStyle: ButtonStyle {
 private struct SubtleIconButtonContent: View {
     let configuration: ButtonStyleConfiguration
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.keyboardPalette) private var palette
+    @Environment(\.keycapCorners) private var corners
     @State private var isHovered = false
 
     // MARK: - Body
     var body: some View {
         configuration.label
-            .foregroundStyle(KeyboardDesign.Palette.label)
+            .foregroundStyle(palette.label)
             .frame(width: 20, height: 20)
             .background {
-                RoundedRectangle(cornerRadius: KeyboardDesign.Metrics.keyRadius)
-                    .fill(KeyboardDesign.Palette.keyFill)
+                KeycapShape(cornerRadius: corners.radius)
+                    .fill(palette.keyFill)
                     .opacity(isEnabled && isHovered ? 1 : 0)
             }
             .opacity(configuration.isPressed ? 0.65 : 1)
@@ -49,6 +51,7 @@ struct ScaledIconButtonStyle: ButtonStyle {
     let size: CGSize
     let symbolScaleFactor: CGFloat
     let minimumSymbolSize: CGFloat
+    @Environment(\.keyboardPalette) private var palette
 
     // MARK: - Initialization
     init(
@@ -67,7 +70,7 @@ struct ScaledIconButtonStyle: ButtonStyle {
             .font(.system(size: symbolSize, weight: .semibold))
             .foregroundStyle(.primary)
             .frame(width: size.width, height: size.height)
-            .background(KeyboardDesign.Palette.keyFill, in: .rect(cornerRadius: cornerRadius))
+            .background(palette.keyFill, in: .rect(cornerRadius: cornerRadius))
             .contentShape(.rect(cornerRadius: cornerRadius))
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .opacity(configuration.isPressed ? 0.8 : 1)

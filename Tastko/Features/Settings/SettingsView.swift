@@ -5,31 +5,28 @@ import SwiftUI
 struct SettingsView: View {
     let updateService: AppUpdateService
     let aiService: AIProviderService
-    @State private var selection = SettingsDestination.general
+    @SceneStorage("settings.pane") private var selection = SettingsPane.general
 
     // MARK: - Body
     var body: some View {
-        detail
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("Settings section", selection: $selection) {
-                        ForEach(SettingsDestination.allCases, id: \.self) { destination in
-                            Text(destination.title)
-                                .tag(destination)
-                                .help(destination.title)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .controlSize(.large)
-                    .labelsHidden()
-                    .accessibilityIdentifier("settings.section")
+        NavigationSplitView {
+            List(SettingsPane.allCases, selection: sidebarSelection) { pane in
+                Label {
+                    Text(pane.title)
+                } icon: {
+                    SettingsPaneIcon(pane: pane)
                 }
+                .tag(pane)
             }
-            .navigationTitle("Settings")
-            .toolbarRole(.editor)
-            .background(SettingsWindowConfiguration())
-            .frame(width: 680, height: 640)
+            .accessibilityIdentifier("settings.sidebar")
+            .navigationSplitViewColumnWidth(200)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            detail
+                .navigationTitle(selection.title)
+        }
+        .background(SettingsWindowConfiguration())
+        .frame(width: 820, height: 640)
     }
 
     // MARK: - Detail
@@ -38,30 +35,28 @@ struct SettingsView: View {
         switch selection {
         case .general:
             GeneralSettingsView(updateService: updateService)
-        case .providers:
+        case .appearance:
+            AppearanceSettingsView()
+        case .typing:
+            TypingSettingsView()
+        case .ai:
             AIProviderSettingsView(service: aiService)
+        case .advanced:
+            AdvancedSettingsView()
         #if DEBUG
             case .debug:
                 AIDebugView(service: aiService)
         #endif
         }
     }
-}
 
-// MARK: - Settings Destination
-private enum SettingsDestination: Hashable, CaseIterable {
-    case general, providers
-    #if DEBUG
-        case debug
-    #endif
-
-    var title: String {
-        switch self {
-        case .general: "General"
-        case .providers: "AI Providers"
-        #if DEBUG
-            case .debug: "AI Debug"
-        #endif
+    // MARK: - Selection
+    /// The sidebar can deselect its row; keep the current pane when it does.
+    private var sidebarSelection: Binding<SettingsPane?> {
+        Binding {
+            selection
+        } set: { newValue in
+            if let newValue { selection = newValue }
         }
     }
 }

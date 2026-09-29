@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - AppTitlebar
 struct AppTitlebar<TitleContent: View>: View {
     @Environment(\.floatingWindowController) private var floatingWindowController
+    @Environment(\.keyboardPalette) private var palette
     let close: () -> Void
     let minimize: () -> Void
     let titleContent: TitleContent
@@ -40,7 +41,7 @@ struct AppTitlebar<TitleContent: View>: View {
 
             titleContent
                 .font(KeyboardDesign.Typography.title)
-                .foregroundStyle(KeyboardDesign.Palette.label)
+                .foregroundStyle(palette.label)
                 .padding(.horizontal, 112)
         }
         .font(KeyboardDesign.Typography.toolbar)
@@ -50,7 +51,7 @@ struct AppTitlebar<TitleContent: View>: View {
         .frame(height: AppConstants.titlebarHeight)
         .background {
             LinearGradient(
-                colors: [KeyboardDesign.Palette.chrome, KeyboardDesign.Palette.chassis],
+                colors: [palette.chrome, palette.chassis],
                 startPoint: .top,
                 endPoint: .bottom
             )

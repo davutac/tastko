@@ -6,6 +6,7 @@ struct KeyboardStatusView: View {
     @Environment(\.keyboardService) private var keyboardService
     @Environment(\.textPredictionService) private var textPredictionService
     @Environment(\.floatingWindowController) private var floatingWindowController
+    @Environment(\.keyboardPalette) private var palette
 
     let profileError: String?
     let reloadProfiles: () -> Void
@@ -80,7 +81,7 @@ struct KeyboardStatusView: View {
             }
             else {
                 Text("Select an input in another app and start typing.")
-                    .foregroundStyle(KeyboardDesign.Palette.secondaryLabel)
+                    .foregroundStyle(palette.secondaryLabel)
             }
         }
     }

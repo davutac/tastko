@@ -32,11 +32,7 @@ enum KeyMouseHitRegion: Hashable {
         case .rectangle:
             return true
         case .isoReturn:
-            let upperSectionHeight = bounds.height * PanelEditorISOEnterMetrics.upperHeightFraction
-            let lowerLeadingInset =
-                bounds.width * PanelEditorISOEnterMetrics.lowerLeadingInsetFraction
-            return point.y <= bounds.minY + upperSectionHeight
-                || point.x >= bounds.minX + lowerLeadingInset
+            return PanelEditorKeyShape(buttonShape: .isoReturn).path(in: bounds).contains(point)
         }
     }
 }
