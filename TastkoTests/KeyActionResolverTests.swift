@@ -17,7 +17,7 @@ struct KeyActionResolverTests {
             for: trigger,
             primaryAction: .keyStroke(KeyStroke(.a)),
             secondaryAction: .keyStroke(KeyStroke(.a, modifiers: [.shift])),
-            activeOneShotModifiers: [],
+            latchedModifiers: [],
             isCapsLockEnabled: true,
             primaryTitle: "A"
         )
@@ -30,7 +30,7 @@ struct KeyActionResolverTests {
             for: .rightClick,
             primaryAction: .keyStroke(KeyStroke(.semicolon)),
             secondaryAction: .none,
-            activeOneShotModifiers: [.leftShift],
+            latchedModifiers: [.leftShift],
             isCapsLockEnabled: true,
             primaryTitle: "Ö"
         )
@@ -43,7 +43,7 @@ struct KeyActionResolverTests {
                 for: trigger,
                 primaryAction: .keyStroke(KeyStroke(.one)),
                 secondaryAction: .keyStroke(KeyStroke(.one, modifiers: [.shift])),
-                activeOneShotModifiers: [],
+                latchedModifiers: [],
                 isCapsLockEnabled: true,
                 primaryTitle: "1"
             )
@@ -58,7 +58,7 @@ struct KeyActionResolverTests {
                 for: trigger,
                 primaryAction: .text("Hello ä"),
                 secondaryAction: .none,
-                activeOneShotModifiers: [],
+                latchedModifiers: [],
                 isCapsLockEnabled: true
             )
             #expect(action == .text(trigger == .leftClick ? "HELLO Ä" : "hello ä"))
@@ -70,7 +70,7 @@ struct KeyActionResolverTests {
             for: .leftClick,
             primaryAction: .keyStroke(KeyStroke(.s)),
             secondaryAction: .keyStroke(KeyStroke(.s, modifiers: [.shift])),
-            activeOneShotModifiers: [.leftCommand, .leftShift],
+            latchedModifiers: [.leftCommand, .leftShift],
             isCapsLockEnabled: true,
             primaryTitle: "S"
         )
@@ -85,7 +85,7 @@ struct KeyActionResolverTests {
                 for: .leftClick,
                 primaryAction: .keyStroke(KeyStroke(.two)),
                 secondaryAction: .keyStroke(KeyStroke(.two, modifiers: [.shift])),
-                activeOneShotModifiers: captured,
+                latchedModifiers: captured,
                 physicalModifiers: physical
             )
             let flags: KeyModifiers = physical.isEmpty ? [.option] : [.option, .shift]
@@ -98,7 +98,7 @@ struct KeyActionResolverTests {
             for: .rightClick,
             primaryAction: .keyStroke(KeyStroke(.a)),
             secondaryAction: .keyStroke(KeyStroke(.a, modifiers: [.shift])),
-            activeOneShotModifiers: [],
+            latchedModifiers: [],
             physicalModifiers: [.rightOption],
             isCapsLockEnabled: true,
             primaryTitle: "A"
@@ -112,7 +112,7 @@ struct KeyActionResolverTests {
             for: .leftClick,
             primaryAction: .keyStroke(KeyStroke(.one)),
             secondaryAction: .keyStroke(KeyStroke(.one, modifiers: [.shift])),
-            activeOneShotModifiers: []
+            latchedModifiers: []
         )
 
         #expect(action == .keyStroke(KeyStroke(.one)))
@@ -123,7 +123,7 @@ struct KeyActionResolverTests {
             for: .rightClick,
             primaryAction: .keyStroke(KeyStroke(.one)),
             secondaryAction: .keyStroke(KeyStroke(.one, modifiers: [.shift])),
-            activeOneShotModifiers: []
+            latchedModifiers: []
         )
 
         #expect(action == .keyStroke(KeyStroke(.one, modifiers: [.shift])))
@@ -134,7 +134,7 @@ struct KeyActionResolverTests {
             for: .leftClick,
             primaryAction: .keyStroke(KeyStroke(.one)),
             secondaryAction: .keyStroke(KeyStroke(.one, modifiers: [.shift])),
-            activeOneShotModifiers: [.leftShift]
+            latchedModifiers: [.leftShift]
         )
 
         #expect(action == .keyStroke(KeyStroke(.one, modifiers: [.shift])))
@@ -145,7 +145,7 @@ struct KeyActionResolverTests {
             for: .leftClick,
             primaryAction: .keyStroke(KeyStroke(.one)),
             secondaryAction: .none,
-            activeOneShotModifiers: [.leftShift]
+            latchedModifiers: [.leftShift]
         )
 
         #expect(action == .keyStroke(KeyStroke(.one, modifiers: [.shift])))
@@ -156,7 +156,7 @@ struct KeyActionResolverTests {
             for: .leftClick,
             primaryAction: .modifier(.leftShift),
             secondaryAction: .keyStroke(KeyStroke(.one, modifiers: [.shift])),
-            activeOneShotModifiers: [.leftShift]
+            latchedModifiers: [.leftShift]
         )
 
         #expect(action == .modifier(.leftShift))
@@ -167,7 +167,7 @@ struct KeyActionResolverTests {
             for: .leftClick,
             primaryAction: .keyStroke(KeyStroke(.s)),
             secondaryAction: .keyStroke(KeyStroke(.s, modifiers: [.shift])),
-            activeOneShotModifiers: [.leftCommand, .leftShift]
+            latchedModifiers: [.leftCommand, .leftShift]
         )
 
         #expect(action == .keyStroke(KeyStroke(.s, modifiers: [.command, .shift])))

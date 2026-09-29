@@ -81,16 +81,16 @@ struct PredictionFallbackTests {
         let keyboard = KeyboardService(targetResolver: fixture, eventPoster: FallbackEventPoster())
         keyboard.typingObserver = fixture.provider
         keyboard.inputDidChange = { fixture.service.keyboardDidChange() }
-        try await keyboard.type("hel")
+        try keyboard.type("hel")
         fixture.service.refresh()
         await eventually { fixture.service.suggestions == ["hello"] }
 
-        let token = try keyboard.beginKeyPress(KeyStroke(.delete), latchedModifiers: [])
+        let token = try keyboard.beginPress(KeyStroke(.delete))
         #expect(fixture.context?.input.context == "he")
-        try keyboard.repeatKeyPress(token)
+        try keyboard.repeatPress(token)
         #expect(fixture.context?.input.context == "h")
-        try keyboard.repeatKeyPress(token)
-        try keyboard.endKeyPress(token)
+        try keyboard.repeatPress(token)
+        try keyboard.endPress(token)
         fixture.service.refresh()
         #expect(fixture.context == nil)
         #expect(fixture.service.completionContext == nil)
@@ -138,17 +138,17 @@ struct PredictionFallbackTests {
         let poster = FallbackEventPoster()
         let keyboard = KeyboardService(targetResolver: fixture, eventPoster: poster)
         keyboard.typingObserver = fixture.provider
-        try await keyboard.type("hel")
-        try await keyboard.press(.delete)
+        try keyboard.type("hel")
+        try keyboard.tap(KeyStroke(.delete))
         #expect(fixture.context?.input.prefix == "he")
-        try await keyboard.press(.leftArrow)
+        try keyboard.tap(KeyStroke(.leftArrow))
         #expect(fixture.context == nil)
-        try await keyboard.type("fresh")
+        try keyboard.type("fresh")
         poster.fails = true
-        await #expect(throws: KeyboardServiceError.self) { try await keyboard.type("failure") }
+        #expect(throws: KeyboardServiceError.self) { try keyboard.type("failure") }
         #expect(fixture.context == nil)
         poster.fails = false
-        try await keyboard.type("before lock")
+        try keyboard.type("before lock")
         keyboard.setScreenLocked(true, allowsInput: true)
         #expect(fixture.context == nil)
     }

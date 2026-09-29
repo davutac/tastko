@@ -13,7 +13,7 @@ struct PredictionContextSnapshotTests {
         let fixture = PredictionSurfaceFixture(screen: screen)
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
-        try await fixture.keyboard.type("he")
+        try fixture.keyboard.type("he")
         fixture.service.refresh()
         let context = try #require(fixture.provider.capture(language: "en"))
         #expect(context.input.context == "he")
@@ -32,15 +32,15 @@ struct PredictionContextSnapshotTests {
         let fixture = PredictionSurfaceFixture(screen: "Last login\n% ")
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
-        try await fixture.keyboard.type("he")
+        try fixture.keyboard.type("he")
         fixture.screen = "Build output arrived asynchronously\n% he"
         // Longer than the normal AX cursor acknowledgment deadline.
         try await Task.sleep(for: .milliseconds(200))
         fixture.service.refresh()
         #expect(fixture.provider.capture(language: "en")?.input.context == "he")
-        try await fixture.keyboard.press(.delete)
+        try fixture.keyboard.tap(KeyStroke(.delete))
         #expect(fixture.provider.capture(language: "en")?.input.prefix == "h")
-        try await fixture.keyboard.press(.leftArrow)
+        try fixture.keyboard.tap(KeyStroke(.leftArrow))
         #expect(fixture.provider.capture(language: "en") == nil)
     }
 
@@ -62,7 +62,7 @@ struct PredictionContextSnapshotTests {
         )
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
-        try await fixture.keyboard.type("he")
+        try fixture.keyboard.type("he")
         fixture.service.refresh()
         await eventually { fixture.service.suggestions == ["hello"] }
         #expect(fixture.service.accept(try #require(fixture.service.choice(for: "hello"))))
@@ -109,7 +109,7 @@ struct PredictionContextSnapshotTests {
         fixture.selection = hasText ? nil : AccessibilityTextRange(location: 0, length: 0)
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
-        try await fixture.keyboard.type("he")
+        try fixture.keyboard.type("he")
         #expect(fixture.provider.capture(language: "en")?.input.context == "he")
         #expect(fixture.provider.capture(language: "en")?.source != .accessibility)
     }
@@ -119,7 +119,7 @@ struct PredictionContextSnapshotTests {
         let fixture = PredictionSurfaceFixture(screen: "% ")
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
-        try await fixture.keyboard.type("he")
+        try fixture.keyboard.type("he")
         fixture.service.refresh()
         await eventually { fixture.service.suggestions == ["hello"] }
         let choice = try #require(fixture.service.choice(for: "hello"))
@@ -157,7 +157,7 @@ struct PredictionContextSnapshotTests {
         let fixture = PredictionSurfaceFixture(screen: "% ")
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
-        try await fixture.keyboard.type("he")
+        try fixture.keyboard.type("he")
         fixture.service.refresh()
         await eventually { fixture.service.suggestions == ["hello"] }
         let choice = try #require(fixture.service.choice(for: "hello"))
@@ -215,10 +215,10 @@ private final class PredictionSurfaceFixture: KeyboardTargetResolving {
         shortcutsActive: { false },
         insert: { [unowned self] insertion, target in
             insertions.append(insertion)
-            try keyboard.type(
+            try keyboard.insertPrediction(
                 insertion.text,
                 deletingBackward: insertion.deleteBackwardCount,
-                toValidatedTarget: target
+                into: target
             )
         }
     )

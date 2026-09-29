@@ -6,32 +6,32 @@ import Testing
 
 // MARK: - Function Key
 extension KeyboardServiceTests {
-    // MARK: - Modifier Hotkeys
-    @Test func functionTogglePostsImmediatelyAndHoldsUntilNextClick() async throws {
+    // MARK: - Fn Toggle
+    @Test func functionTogglePostsImmediatelyAndHoldsUntilNextToggle() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
 
-        try await service.perform(.modifier(.function), behavior: .oneShot)
+        try service.toggleFunction()
         #expect(poster.events == [.key(.function, [.function], true)])
         #expect(service.heldModifiers == [.function])
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
 
-        try await service.perform(.modifier(.function), behavior: .oneShot)
+        try service.toggleFunction()
         #expect(poster.events == [.key(.function, [.function], true), .key(.function, [], false)])
         #expect(service.heldModifiers.isEmpty)
     }
 
-    @Test func stickyModifierPostsImmediately() async throws {
+    @Test func latchPostsImmediately() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
 
-        try await service.perform(.modifier(.leftCommand), behavior: .oneShot)
+        try service.toggleLatch(.leftCommand)
 
         #expect(poster.events == [.key(.leftCommand, [.command], true)])
     }
@@ -54,14 +54,14 @@ extension KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        let first = try #require(try service.beginFunctionPress())
+        try service.toggleFunction()
         // Reproduce the live mismatch after the app's Fn click: keycode down, flag off.
         hardware.snapshot = PhysicalKeyboardSnapshot(pressedKeys: [.function])
         physical.refresh()
-        try service.endFunctionPress(first)
+        try service.toggleFunction()
         #expect(service.effectiveModifiers.contains(.function) == false)
-        let second = try #require(try service.beginFunctionPress())
-        try service.endFunctionPress(second)
+        try service.toggleFunction()
+        try service.toggleFunction()
         #expect(
             poster.events == [
                 .key(.function, [.function], true), .key(.function, [], false),
@@ -71,14 +71,14 @@ extension KeyboardServiceTests {
     }
 
     // MARK: - Held Fn
-    @Test func functionPressHoldsAcrossStrokesUntilMatchingTokenEndsIt() throws {
+    @Test func functionHoldLastsAcrossStrokesUntilToggledOff() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftCommand)
-        let token = try #require(try service.beginFunctionPress())
+        try service.toggleLatch(.leftCommand)
+        try service.toggleFunction()
         #expect(service.heldModifiers == [.function])
         #expect(service.effectiveModifiers == [.leftCommand, .function])
         #expect(
@@ -88,10 +88,9 @@ extension KeyboardServiceTests {
             ]
         )
 
-        let modifiers = service.consumeActiveOneShotModifiers()
-        try service.press(KeyStroke(.a), latchedModifiers: modifiers)
+        try service.tap(KeyStroke(.a, modifiers: [.command, .function]))
         #expect(service.heldModifiers == [.function])
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(
             poster.events == [
                 .key(.leftCommand, [.command], true),
@@ -100,34 +99,29 @@ extension KeyboardServiceTests {
                 .key(.leftCommand, [.function], false),
             ]
         )
-        try service.endFunctionPress(UUID())
-        #expect(poster.events.count == 5)
-        #expect(service.heldModifiers == [.function])
-        try service.endFunctionPress(token)
+        try service.toggleFunction()
         #expect(poster.events.last == .key(.function, [], false))
         #expect(service.heldModifiers.isEmpty)
-        try service.endFunctionPress(token)
-        #expect(poster.events.count == 6)
     }
 
-    // MARK: - Fn Toggle
-    @Test func functionToggleAndOneShotPerformShareTheSameHold() async throws {
+    // MARK: - Fn Latch Routing
+    @Test func latchingFunctionTogglesTheSameHold() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        let receipt = try service.toggleOneShotModifier(.function)
+        let receipt = try service.toggleLatch(.function)
         #expect(receipt.method == .keyEvent)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.heldModifiers == [.function])
-        try await service.perform(.modifier(.function), behavior: .oneShot)
+        try service.tapModifier(.function)
         #expect(
             poster.events == [
                 .key(.function, [.function], true), .key(.function, [], false),
             ]
         )
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.heldModifiers.isEmpty)
     }
 
@@ -138,13 +132,13 @@ extension KeyboardServiceTests {
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleFunctionKey()
-        try service.press(KeyStroke(.a), latchedModifiers: [])
+        try service.toggleFunction()
+        try service.tap(KeyStroke(.a, modifiers: [.function]))
         #expect(service.heldModifiers == [.function])
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(service.heldModifiers.isEmpty)
-        try service.toggleFunctionKey()
-        try service.toggleFunctionKey()
+        try service.toggleFunction()
+        try service.toggleFunction()
         #expect(service.heldModifiers.isEmpty)
         #expect(
             poster.events == [
@@ -156,23 +150,8 @@ extension KeyboardServiceTests {
         )
     }
 
-    // MARK: - Duplicate Fn
-    @Test func duplicateFunctionPressDoesNotReleaseExistingHold() throws {
-        let poster = FakeKeyboardEventPoster()
-        let service = KeyboardService(
-            targetResolver: FakeKeyboardTargetResolver(),
-            eventPoster: poster
-        )
-        let token = try #require(try service.beginFunctionPress())
-        #expect(try service.beginFunctionPress() == nil)
-        #expect(poster.events == [.key(.function, [.function], true)])
-        #expect(service.heldModifiers == [.function])
-        try service.endFunctionPress(token)
-        #expect(poster.events == [.key(.function, [.function], true), .key(.function, [], false)])
-    }
-
     // MARK: - Physical Fn
-    @Test func physicallyHeldFunctionIsNeitherDuplicatedNorReleasedByVirtualInput() async throws {
+    @Test func physicallyHeldFunctionIsNeitherDuplicatedNorReleasedByVirtualInput() throws {
         let physical = PhysicalKeyboardState(
             readHardware: {
                 PhysicalKeyboardSnapshot(pressedKeys: [.function], modifiers: [.function])
@@ -186,37 +165,31 @@ extension KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        #expect(try service.beginFunctionPress() == nil)
-        try service.toggleOneShotModifier(.function)
-        try await service.perform(.modifier(.function), behavior: .oneShot)
-        try service.endFunctionPress(UUID())
-        service.releaseAllModifiers()
+        try service.toggleFunction()
+        try service.toggleLatch(.function)
+        service.releaseAll()
         #expect(poster.events.isEmpty)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.heldModifiers == [.function])
-        try await service.press(.a)
+        try service.tap(KeyStroke(.a, modifiers: [.function]))
         #expect(poster.events == [.key(.a, [.function], true), .key(.a, [.function], false)])
     }
 
     // MARK: - Fn Lock Transition
-    @Test func lockTransitionReleasesFunctionAndOldTokenCannotEndNewHold() throws {
+    @Test func lockTransitionsReleaseTheFunctionHold() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster,
             canPostEvents: { true }
         )
-        let oldToken = try #require(try service.beginFunctionPress())
+        try service.toggleFunction()
         service.setScreenLocked(true, allowsInput: true)
         #expect(service.heldModifiers.isEmpty)
         #expect(poster.events == [.key(.function, [.function], true), .key(.function, [], false)])
-        let newToken = try #require(try service.beginFunctionPress())
-        #expect(newToken != oldToken)
-        try service.endFunctionPress(oldToken)
+        try service.toggleFunction()
         #expect(service.heldModifiers == [.function])
-        #expect(poster.events.count == 3)
         service.setScreenLocked(false, allowsInput: false)
-        try service.endFunctionPress(newToken)
         #expect(service.heldModifiers.isEmpty)
         #expect(
             poster.events == [
@@ -227,18 +200,17 @@ extension KeyboardServiceTests {
     }
 
     // MARK: - Modifier Cleanup
-    @Test func cleanupReleasesTransferredStickyModifiersAndHeldFnOnlyOnce() throws {
+    @Test func cleanupReleasesLatchesBeforeFnAndOnlyOnce() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftCommand)
-        try service.toggleOneShotModifier(.leftShift)
-        let token = try #require(try service.beginFunctionPress())
-        #expect(service.consumeActiveOneShotModifiers() == [.leftCommand, .leftShift])
-        service.releaseAllModifiers()
-        #expect(service.activeOneShotModifiers.isEmpty)
+        try service.toggleLatch(.leftCommand)
+        try service.toggleLatch(.leftShift)
+        try service.toggleFunction()
+        service.releaseAll()
+        #expect(service.latchedModifiers.isEmpty)
         #expect(service.heldModifiers.isEmpty)
         #expect(
             poster.events == [
@@ -250,8 +222,7 @@ extension KeyboardServiceTests {
                 .key(.function, [], false),
             ]
         )
-        service.releaseAllModifiers()
-        try service.endFunctionPress(token)
+        service.releaseAll()
         #expect(poster.events.count == 6)
     }
 
@@ -274,8 +245,8 @@ extension KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        let token = try #require(try service.beginFunctionPress())
-        try service.endFunctionPress(token)
+        try service.toggleFunction()
+        try service.toggleFunction()
         #expect(
             poster.events == [
                 .key(.function, [.function, .option, .capsLock], true),
@@ -295,33 +266,33 @@ extension KeyboardServiceTests {
             eventPoster: poster
         )
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.beginFunctionPress()
+            try service.toggleFunction()
         }
         #expect(service.lastError == .eventCreationFailed)
         #expect(service.heldModifiers.isEmpty)
         #expect(poster.events.isEmpty)
-        let token = try #require(try service.beginFunctionPress())
-        try service.endFunctionPress(token)
+        try service.toggleFunction()
+        try service.toggleFunction()
         #expect(service.lastError == nil)
         #expect(poster.events == [.key(.function, [.function], true), .key(.function, [], false)])
     }
 
     // MARK: - Fn Up Failure
-    @Test func failedFunctionUpKeepsTokenValidForRetry() throws {
+    @Test func failedFunctionUpKeepsTheHoldForRetry() throws {
         let poster = FakeKeyboardEventPoster()
         poster.failingKeyPostAttempts = [2]
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        let token = try #require(try service.beginFunctionPress())
+        try service.toggleFunction()
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.endFunctionPress(token)
+            try service.toggleFunction()
         }
         #expect(service.lastError == .eventCreationFailed)
         #expect(service.heldModifiers == [.function])
         #expect(poster.events == [.key(.function, [.function], true)])
-        try service.endFunctionPress(token)
+        try service.toggleFunction()
         #expect(service.heldModifiers.isEmpty)
         #expect(service.lastError == nil)
         #expect(poster.events == [.key(.function, [.function], true), .key(.function, [], false)])

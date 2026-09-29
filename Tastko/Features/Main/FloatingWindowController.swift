@@ -90,7 +90,7 @@ final class FloatingWindowController {
 
     func hide() {
         guard !isScreenLocked else { return }
-        KeyboardService.shared.releaseAllModifiers()
+        KeyboardService.shared.releaseAll()
         finishToolbarAnimation()
         isHiddenForInactivity = false
         TextPredictionService.shared.stop()
@@ -188,7 +188,7 @@ final class FloatingWindowController {
 
     func minimize() {
         guard !isScreenLocked else { return }
-        KeyboardService.shared.releaseAllModifiers()
+        KeyboardService.shared.releaseAll()
         finishToolbarAnimation()
         presentationState = .minimized
         show()
@@ -284,7 +284,7 @@ final class FloatingWindowController {
             return
         }
 
-        KeyboardService.shared.cancelKeyPresses()
+        KeyboardService.shared.cancelPresses()
         Defaults[.selectedPanelEditorPanelID] = panel.id
         updateSettings()
     }

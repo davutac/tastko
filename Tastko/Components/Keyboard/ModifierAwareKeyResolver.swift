@@ -3,12 +3,12 @@
 enum ModifierAwareKeyResolver {
     // MARK: - Presentation
     static func presentation(
-        from base: ResolvedKeyPresentation,
+        from base: ResolvedKey,
         translator: KeyboardLayoutTranslator,
-        activeOneShotModifiers: Set<ModifierKey>,
+        latchedModifiers: Set<ModifierKey>,
         physicalModifiers: Set<ModifierKey>,
         isCapsLockEnabled: Bool
-    ) -> ResolvedKeyPresentation {
+    ) -> ResolvedKey {
         let shiftedAction = shiftedAction(for: base)
 
         // MARK: - Action Resolution
@@ -17,7 +17,7 @@ enum ModifierAwareKeyResolver {
                 for: trigger,
                 primaryAction: base.leftClickAction,
                 secondaryAction: secondaryAction,
-                activeOneShotModifiers: activeOneShotModifiers,
+                latchedModifiers: latchedModifiers,
                 physicalModifiers: physicalModifiers,
                 isCapsLockEnabled: isCapsLockEnabled,
                 primaryTitle: base.title
@@ -44,7 +44,7 @@ enum ModifierAwareKeyResolver {
             else {
                 secondaryTitle = nil
             }
-            return ResolvedKeyPresentation(
+            return ResolvedKey(
                 title: primaryLabel.title,
                 secondaryTitle: secondaryTitle,
                 leftClickAction: primaryAction,
@@ -53,7 +53,7 @@ enum ModifierAwareKeyResolver {
             )
         }
 
-        return ResolvedKeyPresentation(
+        return ResolvedKey(
             title: base.title,
             secondaryTitle: base.secondaryTitle,
             leftClickAction: primaryAction,
@@ -63,7 +63,7 @@ enum ModifierAwareKeyResolver {
     }
 
     // MARK: - Native Character Keys
-    private static func shiftedAction(for presentation: ResolvedKeyPresentation) -> KeyAction? {
+    private static func shiftedAction(for presentation: ResolvedKey) -> KeyAction? {
         guard case .keyStroke(let stroke) = presentation.leftClickAction,
             stroke.modifiers.isEmpty, KeyboardLayoutTranslator.isPrintable(stroke.key)
         else { return nil }

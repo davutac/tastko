@@ -25,15 +25,15 @@ final class TextPredictionService {
                 ]
                 let physical = CGEventSource.flagsState(.combinedSessionState)
                 return !physical.intersection(shortcuts).isEmpty
-                    || keyboard.activeOneShotModifiers.contains {
+                    || keyboard.latchedModifiers.contains {
                         !$0.modifiers.intersection([.command, .option, .control, .function]).isEmpty
                     }
             },
             insert: { insertion, target in
-                try keyboard.type(
+                try keyboard.insertPrediction(
                     insertion.text,
                     deletingBackward: insertion.deleteBackwardCount,
-                    toValidatedTarget: target
+                    into: target
                 )
             }
         )

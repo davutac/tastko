@@ -16,7 +16,7 @@ struct ModifierAwareKeyResolverTests {
             let normal = ModifierAwareKeyResolver.presentation(
                 from: base(key),
                 translator: translator,
-                activeOneShotModifiers: [],
+                latchedModifiers: [],
                 physicalModifiers: [],
                 isCapsLockEnabled: false
             )
@@ -27,7 +27,7 @@ struct ModifierAwareKeyResolverTests {
         let option = ModifierAwareKeyResolver.presentation(
             from: base(.two),
             translator: translator,
-            activeOneShotModifiers: [.leftOption],
+            latchedModifiers: [.leftOption],
             physicalModifiers: [],
             isCapsLockEnabled: false
         )
@@ -40,7 +40,7 @@ struct ModifierAwareKeyResolverTests {
         let shifted = ModifierAwareKeyResolver.presentation(
             from: base(.two),
             translator: translator,
-            activeOneShotModifiers: [.leftOption],
+            latchedModifiers: [.leftOption],
             physicalModifiers: [.rightShift],
             isCapsLockEnabled: false
         )
@@ -50,7 +50,7 @@ struct ModifierAwareKeyResolverTests {
         let caps = ModifierAwareKeyResolver.presentation(
             from: base(.a),
             translator: translator,
-            activeOneShotModifiers: [],
+            latchedModifiers: [],
             physicalModifiers: [],
             isCapsLockEnabled: true
         )
@@ -70,7 +70,7 @@ struct ModifierAwareKeyResolverTests {
             ),
         ]
         for (action, expectedAction) in cases {
-            let custom = ResolvedKeyPresentation(
+            let custom = ResolvedKey(
                 title: "Custom",
                 secondaryTitle: nil,
                 leftClickAction: action,
@@ -79,7 +79,7 @@ struct ModifierAwareKeyResolverTests {
             let resolved = ModifierAwareKeyResolver.presentation(
                 from: custom,
                 translator: translator,
-                activeOneShotModifiers: [.leftOption],
+                latchedModifiers: [.leftOption],
                 physicalModifiers: [],
                 isCapsLockEnabled: false
             )
@@ -91,7 +91,7 @@ struct ModifierAwareKeyResolverTests {
     }
 
     @Test func unsupportedLayoutsKeepLabelsAndSecondaryActions() {
-        let original = ResolvedKeyPresentation(
+        let original = ResolvedKey(
             title: "A",
             secondaryTitle: nil,
             leftClickAction: .keyStroke(KeyStroke(.a)),
@@ -100,7 +100,7 @@ struct ModifierAwareKeyResolverTests {
         let resolved = ModifierAwareKeyResolver.presentation(
             from: original,
             translator: KeyboardLayoutTranslator(),
-            activeOneShotModifiers: [],
+            latchedModifiers: [],
             physicalModifiers: [.rightOption],
             isCapsLockEnabled: false
         )
@@ -111,7 +111,7 @@ struct ModifierAwareKeyResolverTests {
     }
 
     @Test func customSecondaryActionsKeepTheirLabelsAndDelivery() throws {
-        let original = ResolvedKeyPresentation(
+        let original = ResolvedKey(
             title: "A",
             secondaryTitle: "Template",
             leftClickAction: .keyStroke(KeyStroke(.a)),
@@ -120,7 +120,7 @@ struct ModifierAwareKeyResolverTests {
         let resolved = ModifierAwareKeyResolver.presentation(
             from: original,
             translator: try keyboardLayoutTranslator("com.apple.keylayout.US"),
-            activeOneShotModifiers: [],
+            latchedModifiers: [],
             physicalModifiers: [.rightShift],
             isCapsLockEnabled: false
         )
@@ -134,7 +134,7 @@ struct ModifierAwareKeyResolverTests {
         let resolved = ModifierAwareKeyResolver.presentation(
             from: base(.e),
             translator: try keyboardLayoutTranslator("com.apple.keylayout.US"),
-            activeOneShotModifiers: [.leftOption],
+            latchedModifiers: [.leftOption],
             physicalModifiers: [],
             isCapsLockEnabled: false
         )
@@ -143,8 +143,8 @@ struct ModifierAwareKeyResolverTests {
     }
 
     // MARK: - Fixtures
-    private func base(_ key: Key) -> ResolvedKeyPresentation {
-        ResolvedKeyPresentation(
+    private func base(_ key: Key) -> ResolvedKey {
+        ResolvedKey(
             title: key == .a ? "A" : "Key",
             secondaryTitle: nil,
             leftClickAction: .keyStroke(KeyStroke(key)),

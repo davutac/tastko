@@ -34,9 +34,9 @@ struct PanelEditorLayoutViewTests {
         defer { window.close() }
         hostingView.layoutSubtreeIfNeeded()
 
-        let key = try service.beginKeyPress(KeyStroke(.a), latchedModifiers: [])
-        try service.toggleOneShotModifier(.leftShift)
-        try service.toggleFunctionKey()
+        let key = try service.beginPress(KeyStroke(.a))
+        try service.toggleLatch(.leftShift)
+        try service.toggleFunction()
         let session = service.inputSession
 
         if removesLayout {
@@ -48,15 +48,15 @@ struct PanelEditorLayoutViewTests {
         hostingView.layoutSubtreeIfNeeded()
 
         #expect(service.inputSession != session)
-        #expect(service.activeOneShotModifiers == [.leftShift])
+        #expect(service.latchedModifiers == [.leftShift])
         #expect(service.heldModifiers == [.function])
         #expect(poster.events.last == .key(.a, [.function], false))
         let count = poster.events.count
-        try service.repeatKeyPress(key)
-        try service.endKeyPress(key)
+        try service.repeatPress(key)
+        try service.endPress(key)
         #expect(poster.events.count == count)
 
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(service.effectiveModifiers.isEmpty)
     }
 }

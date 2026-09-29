@@ -67,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        KeyboardService.shared.releaseAllModifiers()
+        KeyboardService.shared.releaseAll()
         PhysicalKeyboardState.shared.stop()
         pointerVisibilityMonitor.stop()
         DistributedNotificationCenter.default().removeObserver(self)
@@ -141,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Suspended Input
     @objc private func releaseKeyboardInput() {
-        KeyboardService.shared.releaseAllModifiers()
+        KeyboardService.shared.releaseAll()
     }
 
     @objc private func screenLocked() {

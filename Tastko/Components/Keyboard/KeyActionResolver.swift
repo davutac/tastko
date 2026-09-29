@@ -13,7 +13,7 @@ nonisolated enum KeyActionResolver {
         for trigger: KeyActionTrigger,
         primaryAction: KeyAction,
         secondaryAction: KeyAction,
-        activeOneShotModifiers: Set<ModifierKey>,
+        latchedModifiers: Set<ModifierKey>,
         physicalModifiers: Set<ModifierKey> = [],
         isCapsLockEnabled: Bool = false,
         primaryTitle: String = ""
@@ -22,7 +22,7 @@ nonisolated enum KeyActionResolver {
             return primaryAction
         }
 
-        let effectiveModifiers = activeOneShotModifiers.union(physicalModifiers)
+        let effectiveModifiers = latchedModifiers.union(physicalModifiers)
         let modifiedPrimary = primaryAction.applying(effectiveModifiers)
         if isCapsLockEnabled, !modifiedPrimary.isKeyboardShortcut {
             switch modifiedPrimary {
@@ -48,7 +48,7 @@ nonisolated enum KeyActionResolver {
                 leftClickAction(
                     primaryAction: primaryAction,
                     secondaryAction: secondaryAction,
-                    activeOneShotModifiers: effectiveModifiers
+                    latchedModifiers: effectiveModifiers
                 )
             }
 
@@ -81,13 +81,13 @@ nonisolated enum KeyActionResolver {
     private static func leftClickAction(
         primaryAction: KeyAction,
         secondaryAction: KeyAction,
-        activeOneShotModifiers: Set<ModifierKey>
+        latchedModifiers: Set<ModifierKey>
     ) -> KeyAction {
         guard !primaryAction.isModifier else {
             return primaryAction
         }
 
-        guard hasActiveShift(activeOneShotModifiers), !secondaryAction.isNone else {
+        guard hasActiveShift(latchedModifiers), !secondaryAction.isNone else {
             return primaryAction
         }
 

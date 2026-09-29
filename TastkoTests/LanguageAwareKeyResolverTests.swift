@@ -135,7 +135,7 @@ struct LanguageAwareKeyResolverTests {
         rightClickAction: KeyAction = .keyStroke(KeyStroke(.y, modifiers: [.shift])),
         languageCodes: [String],
         languageIdentifiers: [String] = []
-    ) -> ResolvedKeyPresentation {
+    ) -> ResolvedKey {
         LanguageAwareKeyResolver.presentation(
             title: title,
             secondaryTitle: secondaryTitle,

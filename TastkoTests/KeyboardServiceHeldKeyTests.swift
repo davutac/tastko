@@ -7,49 +7,48 @@ import Testing
 // MARK: - Held Keys
 extension KeyboardServiceTests {
     // MARK: - Held Key Lifecycle
-    @Test func mouseDownWaitsForReleaseAndRepeatsNeverPostPrematureKeyUp() throws {
+    @Test func heldKeyWaitsForReleaseAndRepeatsNeverPostPrematureKeyUp() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        let token = try service.beginKeyPress(KeyStroke(.delete), latchedModifiers: [])
+        let press = try service.beginPress(KeyStroke(.delete))
         #expect(poster.events == [.key(.delete, [], true)])
 
-        try service.repeatKeyPress(token)
-        try service.repeatKeyPress(token)
+        try service.repeatPress(press)
+        try service.repeatPress(press)
         #expect(
             poster.events == [
                 .key(.delete, [], true), .keyRepeat(.delete, []), .keyRepeat(.delete, []),
             ]
         )
 
-        try service.endKeyPress(token)
+        try service.endPress(press)
         #expect(
             poster.events == [
                 .key(.delete, [], true), .keyRepeat(.delete, []), .keyRepeat(.delete, []),
                 .key(.delete, [], false),
             ]
         )
-        try service.repeatKeyPress(token)
-        try service.endKeyPress(token)
+        try service.repeatPress(press)
+        try service.endPress(press)
         #expect(poster.events.count == 4)
     }
 
-    // MARK: - Held Key Sticky Modifiers
-    @Test func transferredStickyModifiersStayDownThroughRepeatsAndReleaseAfterKeyUp() throws {
+    // MARK: - Held Key Latches
+    @Test func transferredLatchesStayDownThroughRepeatsAndReleaseAfterKeyUp() throws {
         let poster = FakeKeyboardEventPoster()
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftCommand)
-        try service.toggleOneShotModifier(.leftShift)
-        let modifiers = service.consumeActiveOneShotModifiers()
-        let token = try service.beginKeyPress(KeyStroke(.a), latchedModifiers: modifiers)
-        try service.repeatKeyPress(token)
-        try service.repeatKeyPress(token)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        try service.toggleLatch(.leftCommand)
+        try service.toggleLatch(.leftShift)
+        let press = try service.beginPress(KeyStroke(.a, modifiers: [.command, .shift]))
+        try service.repeatPress(press)
+        try service.repeatPress(press)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(
             poster.events == [
                 .key(.leftCommand, [.command], true),
@@ -59,14 +58,14 @@ extension KeyboardServiceTests {
             ]
         )
 
-        try service.endKeyPress(token)
+        try service.endPress(press)
         #expect(
             Array(poster.events.suffix(3)) == [
                 .key(.a, [.command, .shift], false),
                 .key(.leftShift, [.command], false), .key(.leftCommand, [], false),
             ]
         )
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(poster.events.count == 8)
     }
 
@@ -78,11 +77,8 @@ extension KeyboardServiceTests {
             eventPoster: poster
         )
 
-        let token = try service.beginKeyPress(
-            KeyStroke(.equal, modifiers: [.control, .command]),
-            latchedModifiers: []
-        )
-        try service.endKeyPress(token)
+        let press = try service.beginPress(KeyStroke(.equal, modifiers: [.control, .command]))
+        try service.endPress(press)
 
         #expect(
             poster.events == [
@@ -98,7 +94,7 @@ extension KeyboardServiceTests {
 
     // MARK: - Held Key Cleanup
     @Test(arguments: [false, true])
-    func cleanupReleasesKeyBeforeModifiersAndStaleTokenCannotAffectNewPress(
+    func cleanupReleasesKeyBeforeModifiersAndStalePressCannotAffectNewPress(
         lockTransition: Bool
     ) throws {
         let poster = FakeKeyboardEventPoster()
@@ -107,21 +103,18 @@ extension KeyboardServiceTests {
             eventPoster: poster,
             canPostEvents: { true }
         )
-        try service.toggleOneShotModifier(.leftShift)
-        let oldToken = try service.beginKeyPress(
-            KeyStroke(.a),
-            latchedModifiers: service.consumeActiveOneShotModifiers()
-        )
-        try service.repeatKeyPress(oldToken)
+        try service.toggleLatch(.leftShift)
+        let oldPress = try service.beginPress(KeyStroke(.a, modifiers: [.shift]))
+        try service.repeatPress(oldPress)
         let session = service.inputSession
         if lockTransition {
             service.setScreenLocked(true, allowsInput: true)
         }
         else {
-            service.releaseAllModifiers()
+            service.releaseAll()
         }
         #expect(service.inputSession != session)
-        #expect(service.activeOneShotModifiers.isEmpty)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(
             poster.events == [
                 .key(.leftShift, [.shift], true), .key(.a, [.shift], true),
@@ -129,45 +122,46 @@ extension KeyboardServiceTests {
                 .key(.leftShift, [], false),
             ]
         )
-        let newToken = try service.beginKeyPress(KeyStroke(.a), latchedModifiers: [])
-        #expect(newToken != oldToken)
-        try service.repeatKeyPress(oldToken)
-        try service.endKeyPress(oldToken)
+        let newPress = try service.beginPress(KeyStroke(.a))
+        #expect(newPress != oldPress)
+        try service.repeatPress(oldPress)
+        try service.endPress(oldPress)
         #expect(poster.events.count == 6)
-        try service.repeatKeyPress(newToken)
-        try service.endKeyPress(newToken)
+        try service.repeatPress(newPress)
+        try service.endPress(newPress)
         #expect(
             Array(poster.events.suffix(3)) == [
                 .key(.a, [], true), .keyRepeat(.a, []), .key(.a, [], false),
             ]
         )
-        service.releaseAllModifiers()
-        try service.endKeyPress(newToken)
+        service.releaseAll()
+        try service.endPress(newPress)
         #expect(poster.events.count == 8)
     }
 
     // MARK: - Held Key Down Failure
-    @Test func failedKeyDownReleasesTransferredModifiersAndCanBeRetried() throws {
+    @Test func failedKeyDownReleasesTransferredLatchAndCanBeRetried() throws {
         let poster = FakeKeyboardEventPoster()
         poster.failingKeyPostAttempts = [2]
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftShift)
-        let modifiers = service.consumeActiveOneShotModifiers()
+        try service.toggleLatch(.leftShift)
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.beginKeyPress(KeyStroke(.a), latchedModifiers: modifiers)
+            try service.beginPress(KeyStroke(.a, modifiers: [.shift]))
         }
         #expect(service.lastError == .eventCreationFailed)
+        #expect(service.latchedModifiers.isEmpty)
         #expect(poster.events == [.key(.leftShift, [.shift], true), .key(.leftShift, [], false)])
-        service.releaseAllModifiers()
+        service.releaseAll()
         #expect(poster.keyPostAttempts == 3)
 
-        let token = try service.beginKeyPress(KeyStroke(.a), latchedModifiers: modifiers)
+        try service.toggleLatch(.leftShift)
+        let press = try service.beginPress(KeyStroke(.a, modifiers: [.shift]))
         #expect(service.lastError == nil)
-        try service.repeatKeyPress(token)
-        try service.endKeyPress(token)
+        try service.repeatPress(press)
+        try service.endPress(press)
         #expect(
             Array(poster.events.suffix(5)) == [
                 .key(.leftShift, [.shift], true), .key(.a, [.shift], true),
@@ -178,21 +172,18 @@ extension KeyboardServiceTests {
 
     // MARK: - Held Key Up Failure
     @Test(arguments: [false, true])
-    func failedKeyUpRetainsTokenAndModifiersForRetry(usingCleanup: Bool) throws {
+    func failedKeyUpRetainsPressAndModifiersForRetry(usingCleanup: Bool) throws {
         let poster = FakeKeyboardEventPoster()
         poster.failingKeyPostAttempts = [4]
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftShift)
-        let token = try service.beginKeyPress(
-            KeyStroke(.a),
-            latchedModifiers: service.consumeActiveOneShotModifiers()
-        )
-        try service.repeatKeyPress(token)
+        try service.toggleLatch(.leftShift)
+        let press = try service.beginPress(KeyStroke(.a, modifiers: [.shift]))
+        try service.repeatPress(press)
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.endKeyPress(token)
+            try service.endPress(press)
         }
         #expect(service.lastError == .eventCreationFailed)
         #expect(
@@ -202,10 +193,10 @@ extension KeyboardServiceTests {
             ]
         )
         if usingCleanup {
-            service.releaseAllModifiers()
+            service.releaseAll()
         }
         else {
-            try service.endKeyPress(token)
+            try service.endPress(press)
         }
         #expect(service.lastError == nil)
         #expect(
@@ -213,9 +204,9 @@ extension KeyboardServiceTests {
                 .key(.a, [.shift], false), .key(.leftShift, [], false),
             ]
         )
-        try service.repeatKeyPress(token)
-        try service.endKeyPress(token)
-        service.releaseAllModifiers()
+        try service.repeatPress(press)
+        try service.endPress(press)
+        service.releaseAll()
         #expect(poster.keyPostAttempts == 6)
         #expect(poster.events.count == 5)
     }
@@ -228,37 +219,34 @@ extension KeyboardServiceTests {
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        let token = try service.beginKeyPress(KeyStroke(.a), latchedModifiers: [])
+        let press = try service.beginPress(KeyStroke(.a))
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.repeatKeyPress(token)
+            try service.repeatPress(press)
         }
         #expect(service.lastError == .eventCreationFailed)
         #expect(poster.events == [.key(.a, [], true)])
-        try service.repeatKeyPress(token)
-        try service.endKeyPress(token)
+        try service.repeatPress(press)
+        try service.endPress(press)
         #expect(service.lastError == nil)
         #expect(poster.events == [.key(.a, [], true), .keyRepeat(.a, []), .key(.a, [], false)])
     }
 
     // MARK: - Release Edge Cases
-    @Test func modifierReleaseFailureKeepsTokenWithoutRepeatingTheReleasedKey() throws {
+    @Test func modifierReleaseFailureKeepsPressWithoutRepeatingTheReleasedKey() throws {
         let poster = FakeKeyboardEventPoster()
         poster.failingKeyPostAttempts = [4]
         let service = KeyboardService(
             targetResolver: FakeKeyboardTargetResolver(),
             eventPoster: poster
         )
-        try service.toggleOneShotModifier(.leftShift)
-        let token = try service.beginKeyPress(
-            KeyStroke(.a),
-            latchedModifiers: service.consumeActiveOneShotModifiers()
-        )
+        try service.toggleLatch(.leftShift)
+        let press = try service.beginPress(KeyStroke(.a, modifiers: [.shift]))
         #expect(throws: KeyboardServiceError.eventCreationFailed) {
-            try service.endKeyPress(token)
+            try service.endPress(press)
         }
-        try service.repeatKeyPress(token)
+        try service.repeatPress(press)
         #expect(poster.keyPostAttempts == 4)
-        try service.endKeyPress(token)
+        try service.endPress(press)
         #expect(
             poster.events == [
                 .key(.leftShift, [.shift], true), .key(.a, [.shift], true),
@@ -267,7 +255,7 @@ extension KeyboardServiceTests {
         )
     }
 
-    @Test func physicalOverlapDoesNotLoseOwnershipOfEarlierSyntheticModifier() async throws {
+    @Test func physicalOverlapDoesNotLoseOwnershipOfEarlierSyntheticModifier() throws {
         let hardware = FakeHardwareState()
         let physical = PhysicalKeyboardState(
             readHardware: { hardware.snapshot },
@@ -279,13 +267,13 @@ extension KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        try service.toggleOneShotModifier(.leftShift)
+        try service.toggleLatch(.leftShift)
         hardware.snapshot = PhysicalKeyboardSnapshot(
             pressedKeys: [.rightShift],
             modifiers: [.rightShift]
         )
         physical.refresh()
-        try await service.perform(.keyStroke(KeyStroke(.a)))
+        try service.tap(KeyStroke(.a, modifiers: [.shift]))
         #expect(
             poster.events == [
                 .key(.leftShift, [.shift], true), .key(.a, [.shift], true),
@@ -294,7 +282,7 @@ extension KeyboardServiceTests {
         )
     }
 
-    @Test func heldKeyRepeatAndReleaseUseCurrentPhysicalModifiers() throws {
+    @Test func heldKeyRepeatAndReleaseFollowPhysicalModifiers() throws {
         let hardware = FakeHardwareState()
         hardware.snapshot = PhysicalKeyboardSnapshot(
             pressedKeys: [.leftShift],
@@ -311,22 +299,35 @@ extension KeyboardServiceTests {
             eventPoster: poster,
             physicalKeyboard: physical
         )
-        let token = try service.beginKeyPress(
-            KeyStroke(.a, modifiers: [.shift]),
-            latchedModifiers: []
-        )
+        let press = try service.beginPress(KeyStroke(.a, modifiers: [.shift]))
         hardware.snapshot = PhysicalKeyboardSnapshot()
         physical.refresh()
-        try service.repeatKeyPress(token)
+        try service.repeatPress(press)
         hardware.snapshot = PhysicalKeyboardSnapshot(
             pressedKeys: [.leftOption],
             modifiers: [.leftOption]
         )
         physical.refresh()
-        try service.endKeyPress(token)
+        try service.endPress(press)
         #expect(
             poster.events == [
                 .key(.a, [.shift], true), .keyRepeat(.a, []), .key(.a, [.option], false),
+            ]
+        )
+    }
+
+    @Test func heldKeyUsesReResolvedFlagsWhenGiven() throws {
+        let poster = FakeKeyboardEventPoster()
+        let service = KeyboardService(
+            targetResolver: FakeKeyboardTargetResolver(),
+            eventPoster: poster
+        )
+        let press = try service.beginPress(KeyStroke(.a, modifiers: [.capsLock]))
+        try service.repeatPress(press, modifiers: [])
+        try service.endPress(press, modifiers: [])
+        #expect(
+            poster.events == [
+                .key(.a, [.capsLock], true), .keyRepeat(.a, []), .key(.a, [], false),
             ]
         )
     }
