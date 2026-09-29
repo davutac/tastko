@@ -69,6 +69,60 @@ struct PredictionInputTests {
         )
     }
 
+    @Test(arguments: [
+        ("He said \"hi\"", " world "), ("hello)", " world "), ("costs 3", " world "),
+        ("hello -", " world "), ("-", " world "), ("well-", "world "), ("say \"", "world "),
+        ("(\"", "world "), ("#", "world "), ("“", "world "), ("¿", "world "),
+    ])
+    func nextWordSpacingFollowsThePrecedingCharacter(_ text: String, _ insertion: String) throws
+    {
+        #expect(try #require(makeInput(text)).insertion(for: "world") == insertion)
+    }
+
+    @Test func wordAtLineEndAddsItsOwnSpace() throws {
+        let line = try #require(makeInput("hel\nnext line", cursor: 3))
+        #expect(!line.isAtEnd)
+        #expect(line.isAtLineEnd)
+        #expect(line.insertion(for: "hello") == "lo ")
+        let middle = try #require(makeInput("hel next", cursor: 3))
+        #expect(!middle.isAtLineEnd)
+        #expect(middle.insertion(for: "hello") == "lo")
+    }
+
+    // MARK: - Word Parts
+    @Test(arguments: [
+        ("my e-mai", "mai", "mail", "l "), ("a well-kno", "kno", "known", "wn "),
+        ("He said 'hel", "hel", "hello", "lo "), ("’hel", "hel", "hello", "lo "),
+        ("I don'", "don'", "don't", "t "), ("rock'n'rol", "rock'n'rol", "rock'n'roll", "l "),
+    ])
+    func prefixIsTheWordPartSpellCheckingCompletes(
+        _ text: String,
+        _ prefix: String,
+        _ word: String,
+        _ insertion: String
+    ) throws {
+        let input = try #require(makeInput(text))
+        #expect(input.prefix == prefix)
+        #expect(input.insertion(for: word) == insertion)
+        #expect(input.acceptance(for: word)?.deleteBackwardCount == 0)
+    }
+
+    @Test func nativeCandidatesMatchHyphenatedWordParts() throws {
+        // Captured NSSpellChecker ranges: only the part after the hyphen is replaced.
+        let input = try #require(makeInput("my e-mai"))
+        #expect(input.nativeCandidate(replacement: "mail", range: NSRange(location: 5, length: 3)) == "mail")
+    }
+
+    @Test func completionsUseTheTypedApostropheStyle() throws {
+        let curly = try #require(makeInput("I don’"))
+        #expect(curly.validated(["don't", "don’t"]) == ["don’t"])
+        #expect(curly.insertion(for: "don't") == "t ")
+        let straight = try #require(makeInput("I don'"))
+        #expect(straight.validated(["don’t"]) == ["don't"])
+        let nextWord = try #require(makeInput("It’s "))
+        #expect(nextWord.insertion(for: "I'm") == "I’m ")
+    }
+
     // MARK: - Candidate Validation
     @Test func filtersInvalidSuggestionsAndPreservesTypedCase() throws {
         let input = try #require(makeInput("Hel"))

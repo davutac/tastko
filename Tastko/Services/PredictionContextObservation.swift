@@ -92,8 +92,11 @@ final class PredictionContextObservation {
     }
 
     // MARK: - Application Focus
-    func observeApplication() {
-        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    /// Observes the app that owns keyboard focus. That can differ from the frontmost
+    /// app, for example in non-activating panels such as Spotlight.
+    func observeApplication(
+        _ pid: pid_t? = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    ) {
         guard pid != processIdentifier else { return }
         removeAXObserver()
         guard let pid, pid != ProcessInfo.processInfo.processIdentifier,

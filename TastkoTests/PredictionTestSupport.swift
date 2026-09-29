@@ -59,8 +59,12 @@ final class TestPredictionContextProvider: PredictionContextProviding {
 final class TestNativeProvider: NativeWordPredicting {
     var immediateWords: [String]?
     var requests: [CheckedContinuation<[String], Never>?] = []
+    var prewarmedLanguages: [String] = []
 
     // MARK: - Provider
+    func prewarm(language: String) {
+        if prewarmedLanguages.last != language { prewarmedLanguages.append(language) }
+    }
     func predictions(for input: PredictionInput) async -> [String] {
         if let immediateWords { return immediateWords }
         return await withCheckedContinuation { requests.append($0) }

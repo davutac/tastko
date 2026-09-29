@@ -22,6 +22,12 @@ struct PredictionContext: Equatable {
         }
     }
 
+    /// Whether words shown for `other` still apply here. Words for deleted text do not
+    /// carry over to an emptied field, which gets its own starter words.
+    func continuesPresentation(of other: Self) -> Bool {
+        hasSameSession(as: other) && (!input.context.isEmpty || other.input.context.isEmpty)
+    }
+
     // MARK: - Conservative Fallback Acceptance
     func acceptance(for word: String) -> PredictionInsertion? {
         if case .typingSession = source {

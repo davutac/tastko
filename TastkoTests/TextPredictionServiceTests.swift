@@ -8,20 +8,45 @@ import Testing
 @MainActor
 struct TextPredictionServiceTests {
     // MARK: - Empty Context
-    @Test func emptyTextDoesNotRequestPredictions() async {
+    @Test func emptyFieldSuggestsStarterWords() async throws {
         let fixture = PredictionFixture()
+        fixture.model.reason = "Unavailable"
+        fixture.native.immediateWords = ["I", "The"]
         fixture.source.context = predictionContext("")
         fixture.service.start(polling: false)
-        defer {
-            fixture.service.stop()
-            fixture.native.finishAll()
-            for index in fixture.model.requests.indices { fixture.model.finish(index, words: []) }
-        }
-        try? await Task.sleep(for: .milliseconds(30))
-        #expect(fixture.native.requests.isEmpty)
-        #expect(fixture.model.requests.isEmpty)
+        defer { fixture.service.stop() }
+        await eventually { fixture.service.suggestions == ["I", "The"] }
+        #expect(fixture.service.hasTextContext)
+        #expect(fixture.service.accept(word: "The"))
+        #expect(fixture.insertions == ["The "])
+    }
+
+    @Test func emptiedFieldDropsWordsForDeletedText() async {
+        let fixture = PredictionFixture()
+        fixture.model.reason = "Unavailable"
+        fixture.service.start(polling: false)
+        defer { fixture.service.stop() }
+        await eventually { fixture.native.requests.count == 1 }
+        fixture.native.finish(0, words: ["hello"])
+        await eventually { fixture.service.suggestions == ["hello"] }
+        fixture.source.context = predictionContext("")
+        fixture.service.keyboardDidChange()
+        fixture.service.refresh()
         #expect(fixture.service.suggestions.isEmpty)
-        #expect(!fixture.service.hasTextContext)
+        await eventually { fixture.native.requests.count == 2 }
+        fixture.native.finish(1, words: ["I"])
+        await eventually { fixture.service.suggestions == ["I"] }
+    }
+
+    @Test func prewarmsNativeLanguageOnStartAndLanguageChange() {
+        let fixture = PredictionFixture()
+        fixture.model.reason = "Unavailable"
+        fixture.native.immediateWords = []
+        fixture.service.start(polling: false)
+        defer { fixture.service.stop() }
+        fixture.language = "de"
+        fixture.service.refresh()
+        #expect(fixture.native.prewarmedLanguages == ["en", "de"])
     }
 
     @Test(arguments: [true, false])
@@ -39,9 +64,15 @@ struct TextPredictionServiceTests {
         fixture.service.refresh()
         #expect(fixture.service.suggestions.isEmpty)
         #expect(fixture.service.typedPrefix.isEmpty)
-        #expect(!fixture.service.hasTextContext)
+        // An empty field is still text context and asks for starter words.
+        #expect(fixture.service.hasTextContext == readable)
         fixture.model.updates[0](["help"])
         fixture.model.finish(0, words: ["help"])
+        if readable {
+            // The emptied field asks for starters once the stale request ends.
+            await eventually { fixture.model.requests.count == 2 }
+            fixture.model.finish(1, words: [])
+        }
         await eventually { fixture.model.active == 0 }
         #expect(fixture.service.suggestions.isEmpty)
         #expect(!fixture.service.accept(choice))
@@ -179,7 +210,7 @@ struct TextPredictionServiceTests {
         #expect(fixture.service.suggestions == ["hello", "help", "helmet"])
     }
 
-    @Test func skipsGenerationWhenNativeCandidatesAlreadyFillTheStrip() async throws {
+    @Test func aiWordsFollowTopNativeWordsWhenNativeFillsTheStrip() async throws {
         let fixture = PredictionFixture(debounce: .milliseconds(20))
         let words = [
             "hello", "help", "helmet", "hero", "helping", "helpful", "helicopter", "herald",
@@ -190,8 +221,15 @@ struct TextPredictionServiceTests {
         defer { fixture.service.stop() }
         await eventually { fixture.service.suggestions.count == PredictionInput.maximumSuggestions }
         #expect(fixture.service.suggestions == Array(words.prefix(8)))
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(fixture.model.requests.isEmpty)
+        // Real native candidates return about twenty words, so AI must not wait for gaps.
+        await eventually { fixture.model.requests.count == 1 }
+        fixture.model.finish(0, words: ["heat", "help", "heard"])
+        await eventually { fixture.model.resetCount == 1 }
+        #expect(
+            fixture.service.suggestions == [
+                "hello", "help", "helmet", "heat", "heard", "hero", "helping", "helpful",
+            ]
+        )
     }
 
     @Test func staleResponsesNeverPublishAndModelRequestsNeverOverlap() async throws {
@@ -229,7 +267,7 @@ struct TextPredictionServiceTests {
         fixture.model.finish(0, words: [])
     }
 
-    @Test func freezesSuggestionsDuringPressAndValidatesAtAcceptance() async throws {
+    @Test func validatesChoiceAtAcceptance() async throws {
         let fixture = PredictionFixture()
         fixture.service.start(polling: false)
         defer { fixture.service.stop() }
@@ -237,10 +275,9 @@ struct TextPredictionServiceTests {
         fixture.native.finish(0, words: ["hello"])
         await eventually { !fixture.service.suggestions.isEmpty }
         let choice = try #require(fixture.service.choice(for: "hello"))
-        fixture.service.beginPress()
         fixture.model.finish(0, words: ["help"])
         await eventually { fixture.model.resetCount == 1 }
-        #expect(fixture.service.suggestions == ["hello"])
+        #expect(fixture.service.suggestions == ["hello", "help"])
         #expect(fixture.service.accept(choice))
         #expect(fixture.insertions == ["llo "])
         #expect(fixture.deliveredPID == choice.context.target.processIdentifier)

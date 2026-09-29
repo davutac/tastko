@@ -197,6 +197,29 @@ struct PredictionFallbackTests {
         #expect(fixture.insertions.isEmpty)
     }
 
+    @Test func typedTextHidesWordsTheFallbackCanNoLongerInsert() async {
+        let fixture = FallbackFixture()
+        fixture.service.start(polling: false)
+        defer {
+            fixture.service.stop()
+            fixture.native.finishAll()
+        }
+        fixture.type("he")
+        fixture.service.refresh()
+        await eventually { fixture.native.requests.count == 1 }
+        fixture.native.finish(0, words: ["hello", "help"])
+        await eventually { fixture.service.suggestions == ["hello", "help"] }
+        fixture.type("l")
+        fixture.service.keyboardDidChange()
+        fixture.service.refresh()
+        #expect(fixture.service.suggestions == ["hello", "help"])
+        fixture.type("l")
+        fixture.service.keyboardDidChange()
+        fixture.service.refresh()
+        // A fallback word must extend the typed text, so a click never does nothing.
+        #expect(fixture.service.suggestions == ["hello"])
+    }
+
     @Test func delayedResultsCannotCrossResetEvenWithTheSameText() async {
         let fixture = FallbackFixture()
         fixture.service.start(polling: false)
