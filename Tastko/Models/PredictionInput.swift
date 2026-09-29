@@ -7,6 +7,8 @@ nonisolated struct PredictionInput: Equatable, Sendable {
     let prefix: String
     let language: String
     let isAtEnd: Bool
+    /// Nothing but a line break follows the cursor, so a word can bring its own space.
+    let isAtLineEnd: Bool
 
     // MARK: - Cursor Context
     init?(text: String, range: AccessibilityTextRange, language: String) {
@@ -23,12 +25,17 @@ nonisolated struct PredictionInput: Equatable, Sendable {
         }
 
         let preceding = text[..<cursor]
-        let prefix = String(preceding.reversed().prefix(while: Self.isWordCharacter).reversed())
+        let fragment = String(preceding.reversed().prefix(while: Self.isWordCharacter).reversed())
+        // Spell checking completes only the part after a hyphen and ignores opening
+        // apostrophes, so `e-mai` completes `mai` and `'hel` completes `hel`.
+        let lastPart = fragment.split(separator: "-", omittingEmptySubsequences: false).last ?? ""
+        let prefix = String(lastPart.drop(while: Self.isApostrophe))
         guard prefix.count <= 64 else { return nil }
         self.context = String(preceding.suffix(512))
         self.prefix = prefix
         self.language = language
         self.isAtEnd = cursor == text.endIndex
+        self.isAtLineEnd = cursor == text.endIndex || text[cursor].isNewline
     }
 
     // MARK: - Candidate Validation
@@ -36,7 +43,9 @@ nonisolated struct PredictionInput: Equatable, Sendable {
         var seen = Set<String>()
         let locale = Locale(identifier: language)
         return candidates.compactMap { candidate in
-            guard var word = Self.normalizedWord(candidate) else { return nil }
+            guard var word = Self.normalizedWord(candidate).map(matchingApostrophes) else {
+                return nil
+            }
 
             if !prefix.isEmpty {
                 // Case changes are allowed in model output, but never rewrite what was typed.
@@ -63,8 +72,8 @@ nonisolated struct PredictionInput: Equatable, Sendable {
 
     // MARK: - Visible Suggestion Acceptance
     func acceptance(for candidate: String) -> PredictionInsertion? {
-        guard let word = Self.normalizedWord(candidate) else { return nil }
-        let suffix = isAtEnd ? " " : ""
+        guard let word = Self.normalizedWord(candidate).map(matchingApostrophes) else { return nil }
+        let suffix = isAtLineEnd ? " " : ""
         if prefix.isEmpty {
             return PredictionInsertion(text: leadingSpace + word + suffix, deleteBackwardCount: 0)
         }
@@ -85,10 +94,36 @@ nonisolated struct PredictionInput: Equatable, Sendable {
 
     // MARK: - Punctuation Spacing
     private var leadingSpace: String {
-        guard prefix.isEmpty, let preceding = context.last,
-            Self.isSentencePunctuation(preceding)
-        else { return "" }
-        return " "
+        guard prefix.isEmpty, let preceding = context.last, !preceding.isWhitespace else {
+            return ""
+        }
+        let followsText =
+            context.dropLast().last.map { !$0.isWhitespace && !Self.joinsNextWord($0) } ?? false
+        switch preceding {
+        case "\"", "'", "’":
+            // A straight quote closes a quotation only when it follows text.
+            return followsText ? " " : ""
+        case "-", "–", "—":
+            // A hyphen joins word parts, while a dash between spaces separates words.
+            return followsText ? "" : " "
+        default:
+            return Self.joinsNextWord(preceding) ? "" : " "
+        }
+    }
+
+    /// Characters that the next word attaches to without a space.
+    private static func joinsNextWord(_ character: Character) -> Bool {
+        "([{</@#_\\“‘„‚«‹¿¡".contains(character)
+    }
+
+    // MARK: - Apostrophe Style
+    /// Uses the apostrophe already typed, so `don’` completes to `don’t`.
+    private func matchingApostrophes(_ word: String) -> String {
+        switch context.last(where: Self.isApostrophe) {
+        case "’": word.replacingOccurrences(of: "'", with: "’")
+        case "'": word.replacingOccurrences(of: "’", with: "'")
+        default: word
+        }
     }
 
     // MARK: - Sentence Punctuation
@@ -127,7 +162,11 @@ nonisolated struct PredictionInput: Equatable, Sendable {
 
     // MARK: - Word Boundaries
     private static func isWordCharacter(_ character: Character) -> Bool {
-        character.isLetter || character == "'" || character == "’" || character == "-"
+        character.isLetter || isApostrophe(character) || character == "-"
+    }
+
+    private static func isApostrophe(_ character: Character) -> Bool {
+        character == "'" || character == "’"
     }
 }
 

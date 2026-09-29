@@ -10,6 +10,14 @@ nonisolated enum PredictionTextCoordinates {
             text.contains(where: \.isNewline)
         else { return range }
 
+        // Without a break before or at the cursor, both coordinate systems agree there.
+        var offset = 0
+        for character in text {
+            if character.isNewline { break }
+            if offset >= range.location { return range }
+            offset += character.utf16.count
+        }
+
         // Native fields use AXValue coordinates. Some web editors instead omit
         // paragraph breaks in AXStringForRange and AXSelectedTextRange.
         let fullText = textForRange(AccessibilityTextRange(location: 0, length: text.utf16.count))

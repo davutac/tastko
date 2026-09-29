@@ -204,6 +204,13 @@ final class AccessibilityService {
 
     private(set) var isAuthorized = false
 
+    /// Bounds every Accessibility request so a busy app cannot stall the keyboard.
+    private static let messagingTimeout: Float = 0.25
+    /// How long to skip requests to an app after one of them timed out.
+    private static let unresponsiveBackoff: Duration = .seconds(1)
+
+    private let systemWideElement = AXUIElementCreateSystemWide()
+    private var unresponsiveApplications: [pid_t: ContinuousClock.Instant] = [:]
     private let editableTextRoles: Set<String> = [
         kAXComboBoxRole as String,
         kAXTextAreaRole as String,
@@ -212,6 +219,9 @@ final class AccessibilityService {
 
     // MARK: - Initialization
     private init() {
+        // The default timeout is several seconds. Setting it on the system-wide
+        // element applies it to every element this process messages.
+        AXUIElementSetMessagingTimeout(systemWideElement, Self.messagingTimeout)
         refreshAuthorizationStatus()
     }
 
@@ -245,14 +255,17 @@ final class AccessibilityService {
             throw AccessibilityFocusError.secureTextInput
         }
 
-        if let focusedElement = context.focusedElement, isEditableTextElement(focusedElement) {
+        if let focusedElement = context.focusedElement,
+            let textElement = editableTextElement(for: focusedElement)
+        {
             return FocusedKeyboardTarget(
                 processIdentifier: context.processIdentifier,
                 applicationName: context.applicationName,
                 applicationElement: context.applicationElement,
-                focusedTextElement: focusedElement,
+                focusedTextElement: textElement,
                 focusedWindow: context.focusedWindow,
-                route: .textElement
+                route: .textElement,
+                focusedElement: CFEqual(textElement, focusedElement) ? nil : focusedElement
             )
         }
 
@@ -354,30 +367,36 @@ final class AccessibilityService {
     ) -> PredictionContextSnapshot {
         guard target.processIdentifier != ProcessInfo.processInfo.processIdentifier
         else { return .ineligible }
-        let snapshot: PredictionContextSnapshot
-        if let element = target.focusedTextElement {
-            var settable = DarwinBoolean(false)
-            let result = AXUIElementIsAttributeSettable(
-                element,
-                kAXValueAttribute as CFString,
-                &settable
-            )
-            let isValueSettable = result == .success && settable.boolValue
-            snapshot = PredictionContextSnapshot(
-                target: target,
-                value: textValue(for: element, includesText: isValueSettable),
-                language: language,
-                isValueSettable: isValueSettable,
-                textForRange: { self.string(for: $0, in: element) }
-            )
+        guard let element = target.focusedTextElement else {
+            return .unreadable(target, selection: nil)
         }
-        else {
-            snapshot = .unreadable(target, selection: nil)
+        var settable = DarwinBoolean(false)
+        let result = request(element) {
+            AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable)
         }
-        guard let current = try? focusedKeyboardTarget(),
-            current.hasSameFocus(as: target)
-        else { return .ineligible }
-        return snapshot
+        let isValueSettable = result == .success && settable.boolValue
+        let snapshot = PredictionContextSnapshot(
+            target: target,
+            value: textValue(for: element, includesText: isValueSettable),
+            language: language,
+            isValueSettable: isValueSettable,
+            textForRange: { self.string(for: $0, in: element) }
+        )
+        // Text reads are not atomic. Reject them if focus moved in the meantime.
+        return isStillFocused(target) ? snapshot : .ineligible
+    }
+
+    // MARK: - Focus Revalidation
+    /// Confirms focus stayed on the target with two requests instead of resolving it again.
+    private func isStillFocused(_ target: FocusedKeyboardTarget) -> Bool {
+        guard let application = try? focusedApplicationElement(),
+            (try? processIdentifier(for: application)) == target.processIdentifier,
+            let focusedElement: AXUIElement = try? copyAttribute(
+                kAXFocusedUIElementAttribute as CFString,
+                from: application
+            )
+        else { return false }
+        return CFEqual(focusedElement, target.focusedElement ?? target.targetElement)
     }
 
     // MARK: - Accessibility Helpers
@@ -406,8 +425,6 @@ final class AccessibilityService {
     }
 
     private func focusedApplicationElement() throws -> AXUIElement {
-        let systemWideElement = AXUIElementCreateSystemWide()
-
         if let focusedApplication: AXUIElement = try? copyAttribute(
             kAXFocusedApplicationAttribute as CFString,
             from: systemWideElement
@@ -438,7 +455,9 @@ final class AccessibilityService {
         from element: AXUIElement
     ) throws -> Value {
         var rawValue: AnyObject?
-        let result = AXUIElementCopyAttributeValue(element, attribute, &rawValue)
+        let result = request(element) {
+            AXUIElementCopyAttributeValue(element, attribute, &rawValue)
+        }
         let attributeName = attribute as String
 
         guard result == .success else {
@@ -469,14 +488,15 @@ final class AccessibilityService {
         var range = CFRange(location: range.location, length: range.length)
         guard let parameter = AXValueCreate(.cfRange, &range) else { return nil }
         var value: CFTypeRef?
-        guard
+        let result = request(element) {
             AXUIElementCopyParameterizedAttributeValue(
                 element,
                 kAXStringForRangeParameterizedAttribute as CFString,
                 parameter,
                 &value
-            ) == .success
-        else { return nil }
+            )
+        }
+        guard result == .success else { return nil }
         return value as? String
     }
 
@@ -489,6 +509,38 @@ final class AccessibilityService {
         }
 
         return range
+    }
+
+    // MARK: - Unresponsive Applications
+    /// Sends one request, skipping apps that recently timed out. A hung app would
+    /// otherwise cost the full timeout for every request in a capture.
+    private func request(_ element: AXUIElement, _ body: () -> AXError) -> AXError {
+        var processIdentifier = pid_t()
+        guard AXUIElementGetPid(element, &processIdentifier) == .success else { return body() }
+        if let retry = unresponsiveApplications[processIdentifier] {
+            guard ContinuousClock.now >= retry else { return .cannotComplete }
+            unresponsiveApplications[processIdentifier] = nil
+        }
+        let result = body()
+        if result == .cannotComplete {
+            unresponsiveApplications[processIdentifier] = .now + Self.unresponsiveBackoff
+        }
+        return result
+    }
+
+    // MARK: - Editable Text
+    /// Returns the element holding the focused editable text. Web editors can focus a
+    /// node nested inside the editable root, which they expose as its ancestor.
+    private func editableTextElement(for element: AXUIElement) -> AXUIElement? {
+        if isEditableTextElement(element) { return element }
+        guard
+            let ancestor: AXUIElement = try? copyAttribute(
+                "AXEditableAncestor" as CFString,
+                from: element
+            ),
+            isEditableTextElement(ancestor)
+        else { return nil }
+        return ancestor
     }
 
     private func isEditableTextElement(_ element: AXUIElement) -> Bool {
@@ -508,7 +560,7 @@ final class AccessibilityService {
         focusedElement: AXUIElement?,
         focusedWindow: AXUIElement?
     ) -> AccessibilityFocusRoute? {
-        if let focusedElement, isEditableTextElement(focusedElement) {
+        if let focusedElement, editableTextElement(for: focusedElement) != nil {
             return .textElement
         }
 
@@ -540,11 +592,11 @@ final class AccessibilityService {
         route: AccessibilityFocusRoute?,
         isSecureTextInput: Bool
     ) -> FocusedTextValue? {
-        guard let element, route == .textElement, !isSecureTextInput else {
-            return nil
-        }
+        guard let element, route == .textElement, !isSecureTextInput,
+            let textElement = editableTextElement(for: element)
+        else { return nil }
 
-        return textValue(for: element)
+        return textValue(for: textElement)
     }
 
     private func textValue(for element: AXUIElement, includesText: Bool = true) -> FocusedTextValue

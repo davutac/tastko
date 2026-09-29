@@ -53,7 +53,7 @@ struct WordSuggestionButton: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction {
                 soundService.play(.keyPress)
-                if let choice = service.choice(for: word) { service.accept(choice) }
+                service.accept(word: word)
             }
             .onDisappear(perform: cancelPress)
     }
@@ -82,8 +82,7 @@ struct WordSuggestionButton: View {
         guard button == .left, !isPressActive else { return }
         isPressActive = true
         soundService.play(.keyPress)
-        guard let choice = service.choice(for: word) else { return }
-        service.accept(choice)
+        service.accept(word: word)
     }
 
     // MARK: - Release

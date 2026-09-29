@@ -53,6 +53,37 @@ struct TextPredictionSpacingTests {
         #expect(fixture.insertions == ["llo "])
     }
 
+    @Test func punctuationAtLineEndReplacesThePredictionSpace() async throws {
+        let fixture = PredictionFixture()
+        fixture.model.reason = "Unavailable"
+        fixture.native.immediateWords = ["hello"]
+        fixture.source.context = predictionContext("hel\nnext", cursor: 3)
+        fixture.service.start(polling: false)
+        defer { fixture.service.stop() }
+        await eventually { fixture.service.suggestions == ["hello"] }
+        #expect(fixture.service.accept(word: "hello"))
+        fixture.source.context = predictionContext("hello \nnext", cursor: 6)
+        fixture.service.refresh()
+        fixture.source.context = predictionContext("hello .\nnext", cursor: 7)
+        fixture.service.refresh()
+        #expect(fixture.insertions == ["lo ", "."])
+        #expect(fixture.deletions == [0, 2])
+    }
+
+    @Test func punctuationTypedAwayFromTheWordIsNotCorrected() async throws {
+        let fixture = PredictionFixture()
+        fixture.model.reason = "Unavailable"
+        fixture.native.immediateWords = ["hello"]
+        fixture.source.context = predictionContext("hel\nnext", cursor: 3)
+        fixture.service.start(polling: false)
+        defer { fixture.service.stop() }
+        await eventually { fixture.service.suggestions == ["hello"] }
+        #expect(fixture.service.accept(word: "hello"))
+        fixture.source.context = predictionContext("hello \nnext.", cursor: 12)
+        fixture.service.refresh()
+        #expect(fixture.insertions == ["lo "])
+    }
+
     @Test func manuallyTypedSpaceIsNotCorrected() {
         let fixture = PredictionFixture()
         fixture.model.reason = "Unavailable"

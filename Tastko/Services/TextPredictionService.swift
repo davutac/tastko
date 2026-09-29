@@ -6,6 +6,9 @@ import Observation
 @Observable
 @MainActor
 final class TextPredictionService {
+    /// Native words that keep their positions ahead of contextual AI words.
+    static let leadingNativeSuggestions = 3
+
     static let shared: TextPredictionService = {
         let keyboard = KeyboardService.shared
         let contextProvider = AccessibilityPredictionContextProvider()
@@ -61,7 +64,6 @@ final class TextPredictionService {
     @ObservationIgnored private var revision = 0
     @ObservationIgnored private var nativeWords: [String] = []
     @ObservationIgnored private var modelWords: [String] = []
-    @ObservationIgnored private var pressing = false
     @ObservationIgnored private var nativePending = false
     @ObservationIgnored private var modelPending = false
     @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -104,6 +106,7 @@ final class TextPredictionService {
     func start(polling: Bool = true) {
         guard !isRunning, enabled() else { return }
         isRunning = true
+        nativeProvider.prewarm(language: language())
         contextProvider.startObserving { [weak self] in self?.scheduleRefresh() }
         refresh()
         if modelTask == nil, modelProvider.unavailableReason(language: language()) == nil {
@@ -142,14 +145,17 @@ final class TextPredictionService {
             invalidate()
             return
         }
+        let language = language()
+        // Switching the spell checker's language takes a moment before it predicts.
+        nativeProvider.prewarm(language: language)
         let started = ContinuousClock.now
-        let next = contextProvider.capture(language: language())
+        let next = contextProvider.capture(language: language)
         if next != nil { PredictionTiming.record("context", since: started) }
         if replaceAutomaticSpace(before: next) { return }
-        let availability = modelProvider.unavailableReason(language: language())
-        guard let next, !next.input.context.isEmpty else {
+        let availability = modelProvider.unavailableReason(language: language)
+        guard let next else {
             // A keypress may already have invalidated context while keeping its words.
-            // Empty input must also clear that preserved presentation.
+            // Missing context must also clear that preserved presentation.
             invalidate()
             lastAvailability = availability
             return
@@ -158,8 +164,12 @@ final class TextPredictionService {
             return
         }
         let sameSession =
-            (completionContext ?? displayedContext).map { next.hasSameSession(as: $0) } ?? false
+            (completionContext ?? displayedContext).map { next.continuesPresentation(of: $0) }
+            ?? false
         invalidate(keepingPresentation: sameSession)
+        // Keep only preserved words that the new context can still accept.
+        let acceptable = suggestions.filter { next.acceptance(for: $0) != nil }
+        if acceptable != suggestions { suggestions = acceptable }
         typedPrefix = next.input.prefix
         lastAvailability = availability
         completionContext = next
@@ -210,10 +220,6 @@ final class TextPredictionService {
     private func runPendingModel() {
         guard modelTask == nil, let pendingModel, isRunning else { return }
         self.pendingModel = nil
-        guard nativeWords.count < PredictionInput.maximumSuggestions else {
-            modelPending = false
-            return
-        }
         modelTask = Task { [weak self, modelProvider] in
             let started = ContinuousClock.now
             do {
@@ -257,11 +263,13 @@ final class TextPredictionService {
 
     // MARK: - Publication
     private func publish() {
-        guard !pressing, let context = completionContext else { return }
+        guard let context = completionContext else { return }
+        // Native candidates arrive first and are ranked by typing frequency. Keep the
+        // top few in place and let contextual AI words follow them.
+        let leading = Self.leadingNativeSuggestions
+        let ranked = nativeWords.prefix(leading) + modelWords + nativeWords.dropFirst(leading)
         let next = Array(
-            context.input.validated(nativeWords + modelWords).prefix(
-                PredictionInput.maximumSuggestions
-            )
+            context.input.validated(Array(ranked)).prefix(PredictionInput.maximumSuggestions)
         )
         guard !next.isEmpty || (!nativePending && !modelPending) else { return }
         suggestions = next
@@ -288,7 +296,6 @@ final class TextPredictionService {
             suggestions = []
             displayedContext = nil
             hasTextContext = false
-            pressing = false
         }
     }
 
@@ -297,8 +304,7 @@ final class TextPredictionService {
         guard let pending = automaticSpace else { return false }
         guard let next, next.source == .accessibility,
             next.target.hasSameFocus(as: pending.before.target),
-            next.input.language == pending.before.input.language, next.input.isAtEnd,
-            let text = next.value.text
+            next.input.language == pending.before.input.language, next.input.isAtLineEnd
         else {
             automaticSpace = nil
             return false
@@ -306,14 +312,12 @@ final class TextPredictionService {
         // Posted input is asynchronous. Wait for the accepted word to appear, but
         // stop tracking if the user later deletes back to the original fragment.
         if pending.awaitingInsertion, next == pending.before { return false }
-        if text == pending.expectedText {
+        if pending.isInserted(in: next) {
             automaticSpace?.awaitingInsertion = false
             return false
         }
         automaticSpace = nil
-        guard text.hasPrefix(pending.expectedText) else { return false }
-        let punctuation = String(text.dropFirst(pending.expectedText.count))
-        guard !punctuation.isEmpty,
+        guard let punctuation = pending.typedAfterSpace(in: next), !punctuation.isEmpty,
             punctuation.allSatisfy(PredictionInput.isSentencePunctuation),
             contextProvider.capture(language: language()) == next
         else { return false }
@@ -355,8 +359,7 @@ final class TextPredictionService {
         guard isRunning, enabled(), !shortcutsActive(), suggestions.contains(word),
             let displayedContext,
             let current = contextProvider.capture(language: language()),
-            !current.input.context.isEmpty,
-            current.hasSameSession(as: displayedContext),
+            current.continuesPresentation(of: displayedContext),
             current.acceptance(for: word) != nil
         else { return nil }
         // Displayed words remain usable while a new request is running. Capture the
@@ -364,23 +367,28 @@ final class TextPredictionService {
         return PredictionChoice(word: word, context: current)
     }
 
-    func beginPress() {
-        pressing = true
-    }
-
-    func endPress() {
-        pressing = false
-        publish()
+    /// Accepts a visible word, capturing and validating the field once before posting.
+    @discardableResult
+    func accept(word: String) -> Bool {
+        guard let choice = choice(for: word) else { return false }
+        return commit(choice.word, in: choice.context)
     }
 
     @discardableResult
     func accept(_ choice: PredictionChoice) -> Bool {
-        defer { endPress() }
         guard isRunning, enabled(), !shortcutsActive(),
             let current = contextProvider.capture(language: language()),
-            current == choice.context,
-            let insertion = current.acceptance(for: choice.word)
+            current == choice.context
         else {
+            invalidate()
+            return false
+        }
+        return commit(choice.word, in: current)
+    }
+
+    // MARK: - Insertion
+    private func commit(_ word: String, in current: PredictionContext) -> Bool {
+        guard let insertion = current.acceptance(for: word) else {
             invalidate()
             return false
         }

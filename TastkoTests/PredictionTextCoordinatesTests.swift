@@ -96,6 +96,16 @@ struct PredictionTextCoordinatesTests {
         )
     }
 
+    @Test func doesNotProbeBeforeTheFirstLineBreak() {
+        let range = AccessibilityTextRange(location: 3, length: 0)
+        #expect(
+            PredictionTextCoordinates.selection(in: "hel lo\nnext", range: range) { _ in
+                Issue.record("Offsets before the first break match in every coordinate system")
+                return nil
+            } == range
+        )
+    }
+
     // MARK: - Ambiguous and Invalid Positions
     @Test(arguments: [5, 9, -1])
     func neverGuessesAtOmittedBreaksOrInvalidOffsets(_ location: Int) {

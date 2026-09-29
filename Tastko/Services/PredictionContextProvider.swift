@@ -48,18 +48,20 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
             clearBuffer()
             lastLanguage = language
         }
-        observation?.observeApplication()
         switch snapshot(language) {
         case .readable(let context):
+            observation?.observeApplication(context.target.processIdentifier)
             observation?.observeElement(context.target.focusedTextElement)
             clearBuffer()
             return context
         case .unreadable(let target, let selection):
+            observation?.observeApplication(target.processIdentifier)
             observation?.observeElement(target.focusedTextElement ?? target.focusedElement)
             observeTypingTarget(target, selection: selection, source: inputSource())
             guard !translator.isComposing else { return nil }
             return buffer.context(language: language)
         case .ineligible:
+            observation?.observeApplication()
             observation?.observeElement(nil)
             clearBuffer()
             return nil
