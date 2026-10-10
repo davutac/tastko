@@ -46,6 +46,8 @@ nonisolated struct KeyboardTheme: Identifiable, Sendable {
 }
 
 // MARK: - Catalog
+// Palettes stay compact, one color group per line, for side-by-side comparison.
+// swift-format-ignore
 nonisolated extension KeyboardTheme {
     static let all: [Self] = [
         .tastko, .graphite, .midnight, .oled, .paper, .highContrast,

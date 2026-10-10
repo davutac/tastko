@@ -37,6 +37,9 @@ jobs:
             exit 1
           fi
 
+      - name: Check formatting
+        run: xcrun swift-format lint --strict --recursive Tastko TastkoTests TastkoUITests script
+
       # UI tests need a signed app and a logged-in GUI session, so CI runs unit tests only.
       - name: Run unit tests
         run: |

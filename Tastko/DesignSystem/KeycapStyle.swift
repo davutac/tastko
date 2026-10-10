@@ -39,7 +39,8 @@ nonisolated enum KeycapStyle: String, CaseIterable, Identifiable, Defaults.Seria
 }
 
 // MARK: - KeycapCorners
-nonisolated enum KeycapCorners: String, CaseIterable, Identifiable, Defaults.Serializable, Sendable {
+nonisolated enum KeycapCorners: String, CaseIterable, Identifiable, Defaults.Serializable, Sendable
+{
     case square
     case standard
     case round

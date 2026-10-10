@@ -74,8 +74,7 @@ struct PredictionInputTests {
         ("hello -", " world "), ("-", " world "), ("well-", "world "), ("say \"", "world "),
         ("(\"", "world "), ("#", "world "), ("“", "world "), ("¿", "world "),
     ])
-    func nextWordSpacingFollowsThePrecedingCharacter(_ text: String, _ insertion: String) throws
-    {
+    func nextWordSpacingFollowsThePrecedingCharacter(_ text: String, _ insertion: String) throws {
         #expect(try #require(makeInput(text)).insertion(for: "world") == insertion)
     }
 
@@ -110,7 +109,10 @@ struct PredictionInputTests {
     @Test func nativeCandidatesMatchHyphenatedWordParts() throws {
         // Captured NSSpellChecker ranges: only the part after the hyphen is replaced.
         let input = try #require(makeInput("my e-mai"))
-        #expect(input.nativeCandidate(replacement: "mail", range: NSRange(location: 5, length: 3)) == "mail")
+        #expect(
+            input.nativeCandidate(replacement: "mail", range: NSRange(location: 5, length: 3))
+                == "mail"
+        )
     }
 
     @Test func completionsUseTheTypedApostropheStyle() throws {

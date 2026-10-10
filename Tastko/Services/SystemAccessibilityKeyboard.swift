@@ -31,7 +31,9 @@ enum SystemAccessibilityKeyboard {
         configuration.activates = false
         configuration.hides = hideSettingsAfterward
         let settings = try await workspace.open(
-            [settingsURL], withApplicationAt: applicationURL, configuration: configuration
+            [settingsURL],
+            withApplicationAt: applicationURL,
+            configuration: configuration
         )
         defer {
             if hideSettingsAfterward { settings.hide() }
@@ -53,13 +55,18 @@ enum SystemAccessibilityKeyboard {
                 try await Task.sleep(for: .milliseconds(200))
             }
             if let sheet = element(
-                in: application, attribute: kAXRoleAttribute, matching: kAXSheetRole)
-            {
+                in: application,
+                attribute: kAXRoleAttribute,
+                matching: kAXSheetRole
+            ) {
                 // Only accept the confirmation produced by our own off action.
                 guard requestedState == false else { throw ToggleError.couldNotToggle }
                 if !confirmedDisable,
                     let confirm = element(
-                        in: sheet, attribute: kAXIdentifierAttribute, matching: "action-button-1")
+                        in: sheet,
+                        attribute: kAXIdentifierAttribute,
+                        matching: "action-button-1"
+                    )
                 {
                     try press(confirm)
                     confirmedDisable = true
@@ -69,7 +76,8 @@ enum SystemAccessibilityKeyboard {
 
             guard
                 let toggle = element(
-                    in: application, attribute: kAXIdentifierAttribute,
+                    in: application,
+                    attribute: kAXIdentifierAttribute,
                     matching: "AX_VIRTUAL_KEYBOARD"
                 ), let value = attribute(kAXValueAttribute, of: toggle) as? NSNumber
             else {
@@ -95,7 +103,9 @@ enum SystemAccessibilityKeyboard {
 
     // MARK: - Find Settings Control
     private static func element(
-        in application: AXUIElement, attribute name: String, matching expectedValue: String
+        in application: AXUIElement,
+        attribute name: String,
+        matching expectedValue: String
     ) -> AXUIElement? {
         var pending = [application]
         var remaining = 500
