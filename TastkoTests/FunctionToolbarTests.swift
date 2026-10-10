@@ -206,10 +206,7 @@ struct FunctionToolbarTests {
                     }
                     completed = fraction == 1
                 }
-                let deadline = ContinuousClock.now + .seconds(2)
-                while !completed, ContinuousClock.now < deadline {
-                    try await Task.sleep(for: .milliseconds(10))
-                }
+                try await waitForAnimation { completed }
                 #expect(completed)
                 #expect(publications == before + 1)
                 #expect(!intermediateFrames.isEmpty)
@@ -239,10 +236,7 @@ struct FunctionToolbarTests {
             }
             #expect(controller.frame == frameAtReversal)
         }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !completed, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await waitForAnimation { completed }
         #expect(reversed && completed)
         #expect(publications == before + 1)
         #expect(controller.frame == initialFrame)
@@ -269,6 +263,16 @@ struct FunctionToolbarTests {
         #expect(callbacks == 0)
         #expect(controller.frame == hiddenFrame)
         #expect(!controller.isVisible)
+    }
+
+    // MARK: - Waiting
+    /// Parallel main-actor tests can delay display-link frames by seconds, so the
+    /// deadline only catches animations that stall, not slow ones.
+    private func waitForAnimation(until isFinished: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(10)
+        while !isFinished(), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     // MARK: - Configuration
