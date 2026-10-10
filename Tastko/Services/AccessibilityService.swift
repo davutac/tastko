@@ -40,10 +40,24 @@ struct FocusedKeyboardTarget {
         guard hasSameElement(as: other),
             CFEqual(focusedElement ?? targetElement, other.focusedElement ?? other.targetElement)
         else { return false }
-        switch (focusedWindow, other.focusedWindow) {
-        case (nil, nil): return true
-        case (let lhs?, let rhs?): return CFEqual(lhs, rhs)
-        default: return false
+        return isFocusedWindow(other.focusedWindow)
+    }
+
+    // MARK: - Reported Focus
+    /// Whether the focused element and window an app reports still match this target.
+    func matchesFocus(element: AXUIElement?, window: () -> AXUIElement?) -> Bool {
+        if let expected = focusedElement ?? focusedTextElement {
+            return element.map { CFEqual($0, expected) } == true
+        }
+        // Apps such as Electron ones report a focused window but no focused element.
+        return element == nil && isFocusedWindow(window())
+    }
+
+    private func isFocusedWindow(_ window: AXUIElement?) -> Bool {
+        switch (focusedWindow, window) {
+        case (nil, nil): true
+        case (let lhs?, let rhs?): CFEqual(lhs, rhs)
+        default: false
         }
     }
 }
@@ -386,15 +400,18 @@ final class AccessibilityService {
 
     // MARK: - Focus Revalidation
     /// Confirms focus stayed on the target with two requests instead of resolving it again.
+    /// Apps that report no focused element need a third to compare the focused window.
     func isFocused(on target: FocusedKeyboardTarget) -> Bool {
         guard let application = try? focusedApplicationElement(),
-            (try? processIdentifier(for: application)) == target.processIdentifier,
-            let focusedElement: AXUIElement = try? copyAttribute(
-                kAXFocusedUIElementAttribute as CFString,
-                from: application
-            )
+            (try? processIdentifier(for: application)) == target.processIdentifier
         else { return false }
-        return CFEqual(focusedElement, target.focusedElement ?? target.targetElement)
+        let focusedElement: AXUIElement? = try? copyAttribute(
+            kAXFocusedUIElementAttribute as CFString,
+            from: application
+        )
+        return target.matchesFocus(element: focusedElement) {
+            try? copyAttribute(kAXFocusedWindowAttribute as CFString, from: application)
+        }
     }
 
     // MARK: - Accessibility Helpers

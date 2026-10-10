@@ -68,6 +68,10 @@ struct PredictionContextSnapshotTests {
         #expect(fixture.service.accept(try #require(fixture.service.choice(for: "hello"))))
         #expect(fixture.poster.text == ["he", "llo "])
         #expect(fixture.provider.capture(language: "en")?.input.context == "hello ")
+        // Focus moving to another window while a key is posted ends the session.
+        fixture.reportedWindow = AXUIElementCreateApplication(44)
+        try fixture.keyboard.type("w")
+        #expect(fixture.provider.capture(language: "en") == nil)
     }
 
     // MARK: - Selection and Native Fields
@@ -175,6 +179,8 @@ struct PredictionContextSnapshotTests {
 @MainActor
 private final class PredictionSurfaceFixture: KeyboardTargetResolving {
     var target = predictionContext("").target
+    /// The window the app reports as focused, once it differs from the target's.
+    var reportedWindow: AXUIElement?
     var screen: String?
     var isValueSettable = false
     var selection: AccessibilityTextRange? = AccessibilityTextRange(location: 0, length: 0)
@@ -204,6 +210,12 @@ private final class PredictionSurfaceFixture: KeyboardTargetResolving {
                 language: language,
                 isValueSettable: isValueSettable
             )
+        },
+        // The app reports the target's focus, as AccessibilityService reads it.
+        focusMatches: { [unowned self] candidate in
+            candidate.matchesFocus(element: target.focusedElement ?? target.focusedTextElement) {
+                reportedWindow ?? target.focusedWindow
+            }
         }
     )
     lazy var service = TextPredictionService(
