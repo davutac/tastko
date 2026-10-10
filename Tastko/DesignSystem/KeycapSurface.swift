@@ -17,18 +17,28 @@ struct KeycapSurface<KeyShape: Shape, Content: View>: View {
 
     // MARK: - Body
     var body: some View {
-        content
-            .background {
-                surface.allowsHitTesting(false)
-            }
-            // Keep labels inside the glass so its shared backdrop does not blur them.
-            .glassEffect(style == .glass ? .regular.tint(glassTint) : .identity, in: shape)
+        keycap
             .overlay {
                 if let borderColor {
                     shape.stroke(borderColor, lineWidth: borderWidth)
                         .allowsHitTesting(false)
                 }
             }
+    }
+
+    // MARK: - Keycap
+    /// The content on its surface, inside the glass for the glass style so its shared
+    /// backdrop does not blur the labels. Other styles skip `glassEffect` entirely: even
+    /// `.identity` glass misplaces a pressed key scaled inside a `GlassEffectContainer`.
+    @ViewBuilder
+    private var keycap: some View {
+        let keycap = content.background { surface.allowsHitTesting(false) }
+        if style == .glass {
+            keycap.glassEffect(.regular.tint(glassTint), in: shape)
+        }
+        else {
+            keycap
+        }
     }
 
     // MARK: - Styles
