@@ -46,7 +46,7 @@ nonisolated struct KeyboardTheme: Identifiable, Sendable {
 }
 
 // MARK: - Catalog
-extension KeyboardTheme {
+nonisolated extension KeyboardTheme {
     static let all: [Self] = [
         .tastko, .graphite, .midnight, .oled, .paper, .highContrast,
         .tokyoNight, .tokyoNightStorm, .catppuccin, .dracula, .nord, .gruvbox,
@@ -319,7 +319,7 @@ extension KeyboardTheme {
 }
 
 // MARK: - Palette Builders
-extension KeyboardPalette {
+nonisolated extension KeyboardPalette {
     fileprivate static func darkTheme(
         chassis: UInt32,
         chrome: UInt32,

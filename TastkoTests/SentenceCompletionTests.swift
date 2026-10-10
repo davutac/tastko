@@ -410,7 +410,7 @@ private final class SentenceFixture {
         maximumConcurrentRequests: maximumConcurrentRequests,
         context: { [unowned self] in current },
         selection: { [unowned self] in selected },
-        generate: { [unowned self] prompt in
+        generate: { @MainActor [unowned self] prompt in
             prompts.append(prompt)
             let index = requests.count
             let result = try await withCheckedThrowingContinuation { requests.append($0) }

@@ -66,9 +66,10 @@ final class NativeWordPredictionProvider: NativeWordPredicting {
                     .generateInlinePredictionsKey: true,
                 ],
                 inSpellDocumentWithTag: tag
-            ) { _, candidates in
-                // AppKit may call back off the main actor. Only immutable words leave
-                // this callback; the service rejects cancelled and stale requests.
+            ) { @Sendable _, candidates in
+                // AppKit calls back on a background queue, so this closure must not
+                // inherit main-actor isolation. Only immutable words leave it; the
+                // service rejects cancelled and stale requests.
                 continuation.resume(
                     returning: candidates.compactMap { candidate in
                         guard let replacement = candidate.replacementString else { return nil }

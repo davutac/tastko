@@ -53,6 +53,20 @@ jobs:
             exit 1
           fi
 
+      - name: Run unit tests
+        run: |
+          xcodebuild \
+            -project Tastko.xcodeproj \
+            -scheme Tastko \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath .build/TestDerivedData \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipMacroValidation \
+            -only-testing:TastkoTests \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
       - name: Validate update signing configuration
         env:
           SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}

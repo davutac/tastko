@@ -2,7 +2,7 @@ import CoreGraphics
 import Defaults
 
 // MARK: - StoredWindowSize
-struct StoredWindowSize: Codable, Defaults.Serializable, Equatable {
+nonisolated struct StoredWindowSize: Codable, Defaults.Serializable, Equatable {
     var width: CGFloat
     var height: CGFloat
 
@@ -21,7 +21,7 @@ struct StoredWindowSize: Codable, Defaults.Serializable, Equatable {
 }
 
 // MARK: - StoredWindowOrigin
-struct StoredWindowOrigin: Codable, Defaults.Serializable, Equatable {
+nonisolated struct StoredWindowOrigin: Codable, Defaults.Serializable, Equatable {
     var x: CGFloat
     var y: CGFloat
 
@@ -93,7 +93,7 @@ enum FloatingWindowDefaults {
     }
 
     // MARK: - Sanitize
-    static func sanitizedMiniSize(_ size: CGSize) -> CGSize {
+    nonisolated static func sanitizedMiniSize(_ size: CGSize) -> CGSize {
         let side = miniSideLength(for: size).sanitized(
             default: defaultMiniSize.width,
             in: allowedMiniSideLengthRange
@@ -102,7 +102,7 @@ enum FloatingWindowDefaults {
         return CGSize(width: side, height: side)
     }
 
-    static func sanitizedOrigin(_ origin: CGPoint?) -> CGPoint? {
+    nonisolated static func sanitizedOrigin(_ origin: CGPoint?) -> CGPoint? {
         guard
             let origin,
             origin.x.isFinite,
@@ -114,7 +114,7 @@ enum FloatingWindowDefaults {
         return origin
     }
 
-    private static func miniSideLength(for size: CGSize) -> CGFloat {
+    private nonisolated static func miniSideLength(for size: CGSize) -> CGFloat {
         let validLengths = [size.width, size.height].filter { $0.isFinite && $0 > 0 }
 
         return validLengths.max() ?? defaultMiniSize.width
@@ -187,7 +187,7 @@ extension Defaults.Keys {
     )
 }
 
-extension CGSize {
+nonisolated extension CGSize {
     // MARK: - Constraint
     func constrained(toAtLeast minimumSize: CGSize) -> CGSize {
         CGSize(
@@ -197,7 +197,7 @@ extension CGSize {
     }
 }
 
-extension CGFloat {
+nonisolated extension CGFloat {
     // MARK: - Sanitize
     fileprivate func sanitized(default defaultValue: CGFloat, in range: ClosedRange<CGFloat>)
         -> CGFloat

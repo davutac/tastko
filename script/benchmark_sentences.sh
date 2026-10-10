@@ -5,7 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BENCHMARK_DIR="$ROOT_DIR/.build/SentenceBenchmark"
 mkdir -p "$BENCHMARK_DIR"
 
-xcrun swiftc -O -parse-as-library -target "$(uname -m)-apple-macos27.0" \
+source "$ROOT_DIR/script/swift_flags.sh"
+xcrun swiftc -O -parse-as-library -target "$(uname -m)-apple-macos27.0" "${TASTKO_SWIFT_FLAGS[@]}" \
     "$ROOT_DIR/Tastko/Models/AccessibilityTextRange.swift" \
     "$ROOT_DIR/Tastko/Models/PredictionInput.swift" \
     "$ROOT_DIR/Tastko/Features/AI/AIModels.swift" \

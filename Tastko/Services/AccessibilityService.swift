@@ -234,10 +234,8 @@ final class AccessibilityService {
 
     @discardableResult
     func requestAuthorization() -> Bool {
-        let options =
-            [
-                kAXTrustedCheckOptionPrompt.takeUnretainedValue(): kCFBooleanTrue as Any
-            ] as CFDictionary
+        // The value of `kAXTrustedCheckOptionPrompt`, a mutable C global Swift 6 rejects.
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
 
         isAuthorized = AXIsProcessTrustedWithOptions(options)
         return isAuthorized
