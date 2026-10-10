@@ -50,7 +50,7 @@ final class KeyboardLanguageService {
         observeInputSourceChanges()
     }
 
-    deinit {
+    isolated deinit {
         notificationObservers.forEach(DistributedNotificationCenter.default().removeObserver)
     }
 

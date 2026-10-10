@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: xcode-27
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check Xcode and SDK
+        run: |
+          xcodebuild -version
+          sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+          if (( ${sdk_version%%.*} < 27 )); then
+            echo "::error::Tastko requires the macOS 27 SDK or later."
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: xcrun swift-format lint --strict --recursive Tastko TastkoTests TastkoUITests script
+
+      # UI tests need a signed app and a logged-in GUI session, so CI runs unit tests only.
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          mkdir -p .build
+          xcodebuild \
+            -project Tastko.xcodeproj \
+            -scheme Tastko \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath .build/CIDerivedData \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipMacroValidation \
+            -only-testing:TastkoTests \
+            CODE_SIGNING_ALLOWED=NO \
+            test 2>&1 | tee .build/test.log
+
+      # Warnings-as-errors cannot be passed globally: it conflicts with the
+      # -suppress-warnings flag Xcode applies to package dependencies.
+      - name: Reject compiler warnings in Tastko sources
+        run: |
+          warnings="$(grep -E "^${GITHUB_WORKSPACE}/(Tastko|TastkoTests|TastkoUITests|script)/[^:]+:[0-9]+:[0-9]+: warning:" .build/test.log | sort -u || true)"
+          if [[ -n "$warnings" ]]; then
+            echo "$warnings"
+            echo "::error::Fix the compiler warnings above."
+            exit 1
+          fi
+
+      - name: Build benchmarks
+        run: |
+          bash script/benchmark_predictions.sh --build-only
+          bash script/benchmark_sentences.sh --build-only
+          bash script/benchmark_sentence_typing.sh --build-only

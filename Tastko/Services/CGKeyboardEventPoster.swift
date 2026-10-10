@@ -15,20 +15,16 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
 
     // MARK: - System-Focus Text
     func postTextToSystemFocus(_ text: String) throws {
-        let down = try unicodeEvent(text, keyDown: true)
-        let up = try unicodeEvent(text, keyDown: false)
-        down.flags = []
-        up.flags = []
-        post(down, keyDown: true)
-        post(up, keyDown: false)
+        for event in try textEvents(text) {
+            event.flags = []
+            post(event, keyDown: event.type == .keyDown)
+        }
     }
 
     func postText(_ text: String, to target: FocusedKeyboardTarget) throws {
-        let keyDown = try unicodeEvent(text, keyDown: true)
-        let keyUp = try unicodeEvent(text, keyDown: false)
-
-        post(keyDown, keyDown: true, to: target.processIdentifier)
-        post(keyUp, keyDown: false, to: target.processIdentifier)
+        for event in try textEvents(text) {
+            post(event, keyDown: event.type == .keyDown, to: target.processIdentifier)
+        }
     }
 
     // MARK: - Prediction Replacement
@@ -50,10 +46,7 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
                 events.append(event)
             }
         }
-        if !text.isEmpty {
-            events.append(try unicodeEvent(text, keyDown: true))
-            events.append(try unicodeEvent(text, keyDown: false))
-        }
+        events += try textEvents(text)
         for event in events {
             event.flags = []
             post(event, keyDown: event.type == .keyDown, to: target.processIdentifier)
@@ -117,6 +110,36 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
         return event
     }
 
+    // MARK: - Text Events
+    /// Receivers can read at most this many UTF-16 units from one keyboard event.
+    static let maximumUnicodeStringLength = 20
+
+    /// Key down and up events that type `text`, created before any is posted so a
+    /// failure cannot leave the text partially typed.
+    func textEvents(_ text: String) throws -> [CGEvent] {
+        try Self.unicodeChunks(text).flatMap { chunk in
+            [try unicodeEvent(chunk, keyDown: true), try unicodeEvent(chunk, keyDown: false)]
+        }
+    }
+
+    /// Splits text into event-sized chunks without splitting a character. A single
+    /// character longer than the limit stays whole.
+    static func unicodeChunks(_ text: String) -> [String] {
+        var chunks: [String] = []
+        var chunk = ""
+        for character in text {
+            if !chunk.isEmpty,
+                chunk.utf16.count + character.utf16.count > maximumUnicodeStringLength
+            {
+                chunks.append(chunk)
+                chunk = ""
+            }
+            chunk.append(character)
+        }
+        if !chunk.isEmpty { chunks.append(chunk) }
+        return chunks
+    }
+
     // MARK: - Events
     private func unicodeEvent(_ text: String, keyDown: Bool) throws -> CGEvent {
         guard
@@ -141,5 +164,4 @@ struct CGKeyboardEventPoster: KeyboardEventPosting {
 
         return event
     }
-
 }

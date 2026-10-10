@@ -7,6 +7,15 @@ import Testing
 // MARK: - TextPredictionServiceTests
 @MainActor
 struct TextPredictionServiceTests {
+    // MARK: - Fallback Polling
+    @Test func pollsLessOftenWhileTheFieldReportsItsOwnChanges() {
+        let fixture = PredictionFixture()
+        #expect(fixture.service.pollInterval == TextPredictionService.pollInterval)
+        fixture.source.receivesChangeNotifications = true
+        #expect(fixture.service.pollInterval == TextPredictionService.notifiedPollInterval)
+        #expect(TextPredictionService.notifiedPollInterval > TextPredictionService.pollInterval)
+    }
+
     // MARK: - Empty Context
     @Test func emptyFieldSuggestsStarterWords() async throws {
         let fixture = PredictionFixture()

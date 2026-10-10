@@ -8,6 +8,8 @@ final class PredictionContextObservation {
     private var observer: AXObserver?
     private var application: AXUIElement?
     private var element: AXUIElement?
+    /// Whether the focused element accepted value and selection notifications.
+    private(set) var observesElementChanges = false
     private var processIdentifier: pid_t?
     private var workspaceObserver: NSObjectProtocol?
     private var globalInputMonitor: Any?
@@ -155,16 +157,22 @@ final class PredictionContextObservation {
             }
         }
         element = newElement
+        observesElementChanges = false
         if let newElement {
+            var registered = 0
             for notification in notifications {
                 // Unsupported notifications are covered by the service's fallback refresh.
-                AXObserverAddNotification(
+                let result = AXObserverAddNotification(
                     observer,
                     newElement,
                     notification as CFString,
                     Unmanaged.passUnretained(self).toOpaque()
                 )
+                if result == .success || result == .notificationAlreadyRegistered {
+                    registered += 1
+                }
             }
+            observesElementChanges = registered == notifications.count
         }
     }
 
@@ -179,6 +187,7 @@ final class PredictionContextObservation {
         observer = nil
         application = nil
         element = nil
+        observesElementChanges = false
         processIdentifier = nil
     }
 }

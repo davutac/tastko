@@ -8,7 +8,16 @@ import Observation
 @MainActor
 final class PhysicalKeyboardState {
     static let shared = PhysicalKeyboardState()
-    private(set) var snapshot = PhysicalKeyboardSnapshot()
+
+    // Stored separately so a view observes only the state it shows.
+    private(set) var pressedKeys: Set<Key> = []
+    private(set) var modifiers: Set<ModifierKey> = []
+    private(set) var isCapsLockEnabled = false
+    private(set) var pressedControls: Set<SystemControl> = []
+    /// Created up front: reading one key never observes the whole `pressedKeys` set.
+    @ObservationIgnored private let keyPressFlags = Dictionary(
+        uniqueKeysWithValues: Key.allCases.map { ($0, KeyPressFlag()) }
+    )
     @ObservationIgnored private var localMonitor: Any?
     @ObservationIgnored private var globalMonitor: Any?
     @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
@@ -30,6 +39,59 @@ final class PhysicalKeyboardState {
     ) {
         self.readHardware = readHardware
         self.canObserve = canObserve
+    }
+
+    // MARK: - State
+    /// The complete state. Reading it observes every part, so views that show a
+    /// single key use `isPressed(_:)` instead.
+    private(set) var snapshot: PhysicalKeyboardSnapshot {
+        get {
+            PhysicalKeyboardSnapshot(
+                pressedKeys: pressedKeys,
+                modifiers: modifiers,
+                isCapsLockEnabled: isCapsLockEnabled,
+                pressedControls: pressedControls
+            )
+        }
+        set {
+            // Assign only changed parts, so unchanged ones notify no observers.
+            if pressedKeys != newValue.pressedKeys {
+                for key in pressedKeys.symmetricDifference(newValue.pressedKeys) {
+                    keyPressFlags[key]?.isPressed = newValue.pressedKeys.contains(key)
+                }
+                pressedKeys = newValue.pressedKeys
+            }
+            if modifiers != newValue.modifiers { modifiers = newValue.modifiers }
+            if isCapsLockEnabled != newValue.isCapsLockEnabled {
+                isCapsLockEnabled = newValue.isCapsLockEnabled
+            }
+            if pressedControls != newValue.pressedControls {
+                pressedControls = newValue.pressedControls
+            }
+        }
+    }
+
+    var modifierFlags: KeyModifiers {
+        PhysicalKeyboardSnapshot(modifiers: modifiers, isCapsLockEnabled: isCapsLockEnabled)
+            .modifierFlags
+    }
+
+    /// Whether an on-screen key's action is physically pressed. Observes only that
+    /// key and the modifiers, so other key presses do not redraw its view.
+    func isPressed(_ action: KeyAction) -> Bool {
+        switch action {
+        case .keyStroke(let stroke):
+            guard keyPressFlags[stroke.key]?.isPressed == true else { return false }
+            return PhysicalKeyboardSnapshot(
+                pressedKeys: [stroke.key],
+                modifiers: modifiers,
+                isCapsLockEnabled: isCapsLockEnabled
+            ).isPressed(action)
+        case .modifier(let modifier):
+            return modifiers.contains(modifier)
+        default:
+            return false
+        }
     }
 
     // MARK: - Lifecycle
@@ -183,7 +245,7 @@ final class PhysicalKeyboardState {
 
     // MARK: - Poll Masking
     private func maskSyntheticKey(_ key: Key) {
-        if syntheticKeys.insert(key).inserted, snapshot.pressedKeys.contains(key) {
+        if syntheticKeys.insert(key).inserted, pressedKeys.contains(key) {
             overlappingPhysicalKeys.insert(key)
         }
     }
@@ -273,4 +335,12 @@ final class PhysicalKeyboardState {
         default: nil
         }
     }
+}
+
+// MARK: - KeyPressFlag
+/// One key's pressed state, observed on its own.
+@Observable
+@MainActor
+private final class KeyPressFlag {
+    var isPressed = false
 }

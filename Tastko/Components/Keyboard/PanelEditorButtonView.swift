@@ -59,7 +59,7 @@ struct PanelEditorButtonView: View {
     // MARK: - State
     private var isPressed: Bool {
         pressedButton != nil
-            || keyboardService.physicalKeyboard.snapshot.isPressed(button.primaryAction)
+            || keyboardService.physicalKeyboard.isPressed(button.primaryAction)
     }
 
     private var hitRegion: KeyMouseHitRegion {

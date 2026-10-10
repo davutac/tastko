@@ -43,6 +43,7 @@ final class PredictionFixture {
 final class TestPredictionContextProvider: PredictionContextProviding {
     var context: PredictionContext? = predictionContext("he")
     var observing = false
+    var receivesChangeNotifications = false
 
     // MARK: - Provider
     func capture(language: String) -> PredictionContext? {

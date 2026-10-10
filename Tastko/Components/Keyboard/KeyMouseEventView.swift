@@ -18,7 +18,7 @@ enum KeyMouseButton: Hashable {
 }
 
 // MARK: - KeyMouseHitRegion
-enum KeyMouseHitRegion: Hashable {
+nonisolated enum KeyMouseHitRegion: Hashable {
     case rectangle
     case isoReturn
 

@@ -6,6 +6,12 @@ protocol PredictionContextProviding {
     func capture(language: String) -> PredictionContext?
     func startObserving(_ changed: @escaping @MainActor () -> Void)
     func stopObserving()
+    /// Whether the focused element reports its own text and selection changes.
+    var receivesChangeNotifications: Bool { get }
+}
+
+extension PredictionContextProviding {
+    var receivesChangeNotifications: Bool { false }
 }
 
 // MARK: - AccessibilityPredictionContextProvider
@@ -18,8 +24,11 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
     private var buffer = PredictionTypingBuffer()
     private var translator = PredictionKeyTranslator()
     private var preparedInput: (target: FocusedKeyboardTarget, source: String?)?
+    /// The target of the last capture when it could read the field's text.
+    private var lastReadableTarget: FocusedKeyboardTarget?
     private var lastLanguage = ""
     private let snapshot: @MainActor (String) -> PredictionContextSnapshot
+    private let focusCheck: (@MainActor (FocusedKeyboardTarget) -> Bool)?
     private let inputSource: @MainActor () -> String?
     private let observesSystem: Bool
 
@@ -34,11 +43,30 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
                 let target = try? AccessibilityService.shared.focusedKeyboardTarget()
             else { return .ineligible }
             return AccessibilityService.shared.predictionSnapshot(for: target, language: language)
-        }
+        },
+        focusMatches: (@MainActor (FocusedKeyboardTarget) -> Bool)? = nil
     ) {
         self.observesSystem = observesSystem
         self.inputSource = inputSource
         self.snapshot = snapshot
+        self.focusCheck = focusMatches
+    }
+
+    // MARK: - Focus Check
+    /// Checks focus with two Accessibility requests instead of a full text snapshot.
+    static func accessibilityFocusMatches(_ target: FocusedKeyboardTarget) -> Bool {
+        !IsSecureEventInputEnabled() && AccessibilityService.shared.isFocused(on: target)
+    }
+
+    /// Whether focus is still on `target`. Without a cheaper check, compares against
+    /// a full snapshot.
+    private func focusMatches(_ target: FocusedKeyboardTarget) -> Bool {
+        if let focusCheck { return focusCheck(target) }
+        return snapshot(lastLanguage).target?.hasSameFocus(as: target) == true
+    }
+
+    var receivesChangeNotifications: Bool {
+        observation?.observesElementChanges == true
     }
 
     // MARK: - Context
@@ -48,7 +76,9 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
             clearBuffer()
             lastLanguage = language
         }
-        switch snapshot(language) {
+        let snapshot = snapshot(language)
+        lastReadableTarget = snapshot.readableTarget
+        switch snapshot {
         case .readable(let context):
             observation?.observeApplication(context.target.processIdentifier)
             observation?.observeElement(context.target.focusedTextElement)
@@ -72,7 +102,15 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
     func prepareForInput() {
         preparedInput = nil
         guard changed != nil else { return }
-        guard case .unreadable(let target, let selection) = snapshot(lastLanguage) else {
+        // This runs before every key is posted. A readable field needs no typing
+        // buffer, so confirm focus stayed on it rather than reading its text again.
+        if let lastReadableTarget, focusMatches(lastReadableTarget) {
+            clearBuffer()
+            return
+        }
+        let snapshot = snapshot(lastLanguage)
+        lastReadableTarget = snapshot.readableTarget
+        guard case .unreadable(let target, let selection) = snapshot else {
             clearBuffer()
             return
         }
@@ -95,8 +133,7 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
     private func record(_ edit: PredictionTypingEdit) {
         guard changed != nil, let preparedInput,
             preparedInput.source == inputSource(),
-            case .unreadable(let current, _) = snapshot(lastLanguage),
-            current.hasSameFocus(as: preparedInput.target)
+            focusMatches(preparedInput.target)
         else {
             resetTypingSession()
             return
@@ -109,6 +146,7 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
 
     func resetTypingSession() {
         clearBuffer()
+        lastReadableTarget = nil
         changed?()
     }
 
@@ -145,5 +183,22 @@ final class AccessibilityPredictionContextProvider: PredictionContextProviding,
         observation?.stop()
         observation = nil
         clearBuffer()
+        lastReadableTarget = nil
+    }
+}
+
+// MARK: - Snapshot Target
+extension PredictionContextSnapshot {
+    fileprivate var target: FocusedKeyboardTarget? {
+        switch self {
+        case .readable(let context): context.target
+        case .unreadable(let target, _): target
+        case .ineligible: nil
+        }
+    }
+
+    fileprivate var readableTarget: FocusedKeyboardTarget? {
+        guard case .readable(let context) = self else { return nil }
+        return context.target
     }
 }

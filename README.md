@@ -23,7 +23,13 @@ Requires Xcode with the macOS 27 SDK or later. Open `Tastko.xcodeproj`, or run f
 ./script/build_and_run.sh
 ```
 
-The `Tastko` scheme runs and tests **Debug**; profiling and archiving use **Release**.
+The `Tastko` scheme runs and tests **Debug**; profiling and archiving use **Release**. The project uses the Swift 6 language mode.
+
+To run the unit tests, as CI does on every pull request:
+
+```sh
+xcodebuild test -project Tastko.xcodeproj -scheme Tastko -destination 'platform=macOS' -only-testing:TastkoTests
+```
 The app identities are defined in `Configuration/Debug.xcconfig` and `Configuration/Release.xcconfig`:
 
 | Configuration | App | Bundle ID |

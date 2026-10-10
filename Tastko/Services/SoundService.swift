@@ -37,7 +37,7 @@ final class SoundService {
         self.customSoundStore = customSoundStore ?? .shared
     }
 
-    deinit {
+    isolated deinit {
         soundIDs.values.forEach(soundPlayer.dispose)
     }
 

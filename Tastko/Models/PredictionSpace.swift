@@ -16,7 +16,8 @@ struct PredictionSpace {
             let cursor = String.Index(utf16Offset: location, in: text).samePosition(in: text)
         else { return nil }
         before = context
-        expectedText = String(text[..<cursor].dropLast(insertion.deleteBackwardCount)) + insertion.text
+        expectedText =
+            String(text[..<cursor].dropLast(insertion.deleteBackwardCount)) + insertion.text
         followingText = String(text[cursor...])
     }
 

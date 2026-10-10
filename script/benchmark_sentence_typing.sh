@@ -16,7 +16,8 @@ for start, end in parts:
     values += source.split('// MARK: - ' + start, 1)[1].split('// MARK: - ' + end, 1)[0]
 (output / 'FocusTypes.swift').write_text(values)
 PY
-xcrun swiftc -O -parse-as-library -target "$(uname -m)-apple-macos27.0" \
+source "$ROOT_DIR/script/swift_flags.sh"
+xcrun swiftc -O -parse-as-library -target "$(uname -m)-apple-macos27.0" "${TASTKO_SWIFT_FLAGS[@]}" \
     "$ROOT_DIR/Tastko/Models/AccessibilityTextRange.swift" \
     "$ROOT_DIR/Tastko/Models/PredictionInput.swift" \
     "$ROOT_DIR/Tastko/Models/PredictionContext.swift" \
