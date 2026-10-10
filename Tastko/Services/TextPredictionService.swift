@@ -8,10 +8,17 @@ import Observation
 final class TextPredictionService {
     /// Native words that keep their positions ahead of contextual AI words.
     static let leadingNativeSuggestions = 3
+    /// Fallback refresh for fields that do not report their own changes.
+    static let pollInterval: Duration = .milliseconds(250)
+    /// Fallback refresh for fields that report changes. Input events refresh on their
+    /// own, so this only catches changes nothing reports, such as dictation.
+    static let notifiedPollInterval: Duration = .seconds(1)
 
     static let shared: TextPredictionService = {
         let keyboard = KeyboardService.shared
-        let contextProvider = AccessibilityPredictionContextProvider()
+        let contextProvider = AccessibilityPredictionContextProvider(
+            focusMatches: AccessibilityPredictionContextProvider.accessibilityFocusMatches
+        )
         keyboard.typingObserver = contextProvider
         let service = TextPredictionService(
             contextProvider: contextProvider,
@@ -115,11 +122,16 @@ final class TextPredictionService {
         guard polling else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                do { try await Task.sleep(for: .milliseconds(250)) }
+                do { try await Task.sleep(for: self?.pollInterval ?? Self.pollInterval) }
                 catch { return }
                 self?.refresh()
             }
         }
+    }
+
+    /// Each poll copies the field's text, so poll less while the field reports changes.
+    var pollInterval: Duration {
+        contextProvider.receivesChangeNotifications ? Self.notifiedPollInterval : Self.pollInterval
     }
 
     func stop() {

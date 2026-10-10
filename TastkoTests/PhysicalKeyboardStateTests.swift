@@ -1,5 +1,7 @@
 import AppKit
 import IOKit
+import Observation
+import Synchronization
 import Testing
 
 @testable import Tastko
@@ -7,6 +9,25 @@ import Testing
 // MARK: - PhysicalKeyboardStateTests
 @MainActor
 struct PhysicalKeyboardStateTests {
+    // MARK: - Observation Granularity
+    @Test func keyPressInvalidatesOnlyThatKeysPressedState() throws {
+        let state = PhysicalKeyboardState(canObserve: { true })
+        let changed = Mutex<Set<String>>([])
+        func track(_ name: String, _ read: @escaping () -> Void) {
+            withObservationTracking(read) { _ = changed.withLock { $0.insert(name) } }
+        }
+        track("a") { _ = state.isPressed(.keyStroke(KeyStroke(.a))) }
+        track("b") { _ = state.isPressed(.keyStroke(KeyStroke(.b))) }
+        track("modifiers") { _ = state.modifiers }
+
+        state.receive(try event(.b, down: true))
+
+        #expect(changed.withLock { $0 } == ["b"])
+        #expect(state.isPressed(.keyStroke(KeyStroke(.b))))
+        #expect(!state.isPressed(.keyStroke(KeyStroke(.a))))
+        #expect(state.snapshot.pressedKeys == [.b])
+    }
+
     // MARK: - Presses
     @Test func simultaneousKeysRepeatAndReleaseIndependently() throws {
         let state = PhysicalKeyboardState(canObserve: { true })

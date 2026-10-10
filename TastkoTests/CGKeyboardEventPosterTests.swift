@@ -90,6 +90,55 @@ struct CGKeyboardEventPosterTests {
         )
     }
 
+    // MARK: - Text Events
+    @Test func longTextIsTypedInEventSizedChunksThatReassembleIt() throws {
+        // The family emoji is 11 UTF-16 units and lands across the 20-unit boundary.
+        let text = "Thanks for the update 👨‍👩‍👧‍👦 see you tomorrow at the café."
+        let events = try CGKeyboardEventPoster().textEvents(text)
+        let strings = events.map(Self.unicodeString)
+
+        #expect(events.count.isMultiple(of: 2))
+        #expect(events.count > 2)
+        #expect(
+            events.enumerated().allSatisfy { $1.type == ($0.isMultiple(of: 2) ? .keyDown : .keyUp) }
+        )
+        #expect(
+            stride(from: 0, to: strings.count, by: 2).allSatisfy { strings[$0] == strings[$0 + 1] }
+        )
+        #expect(stride(from: 0, to: strings.count, by: 2).map { strings[$0] }.joined() == text)
+        #expect(
+            strings.allSatisfy {
+                $0.utf16.count <= CGKeyboardEventPoster.maximumUnicodeStringLength
+            }
+        )
+        #expect(strings.contains { $0.contains("👨‍👩‍👧‍👦") })
+        #expect(
+            events.allSatisfy {
+                $0.getIntegerValueField(.eventSourceUserData)
+                    == CGKeyboardEventPoster.predictionEventTag
+            }
+        )
+    }
+
+    @Test func chunksNeverSplitACharacter() {
+        let oversized = String(repeating: "e\u{301}", count: 15)
+        #expect(CGKeyboardEventPoster.unicodeChunks("") == [])
+        #expect(CGKeyboardEventPoster.unicodeChunks("short") == ["short"])
+        #expect(CGKeyboardEventPoster.unicodeChunks(oversized).joined() == oversized)
+        #expect(CGKeyboardEventPoster.unicodeChunks(oversized).map(\.utf16.count) == [20, 10])
+    }
+
+    private static func unicodeString(_ event: CGEvent) -> String {
+        var length = 0
+        var buffer = [UniChar](repeating: 0, count: 64)
+        event.keyboardGetUnicodeString(
+            maxStringLength: buffer.count,
+            actualStringLength: &length,
+            unicodeString: &buffer
+        )
+        return String(decoding: buffer.prefix(length), as: UTF16.self)
+    }
+
     // MARK: - Repeat Events
     @Test func repeatIsTaggedKeyDownAndDoesNotLeakIntoFollowingEvents() throws {
         let poster = CGKeyboardEventPoster()

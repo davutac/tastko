@@ -86,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.floatingWindowController.updateSettings()
+                self.floatingWindowController.updateCompanionWindow()
                 self.observeSentencePresentation()
             }
         }

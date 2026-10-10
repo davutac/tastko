@@ -36,6 +36,24 @@ nonisolated struct PointerVisibilityPolicy {
     private var cornerDwell = Self.defaultCornerDwell
     private(set) var cornerProgress: HotCornerProgress?
 
+    /// How long after the last activity the pointer keeps being sampled frequently.
+    static let activeSamplingWindow: TimeInterval = 0.5
+
+    // MARK: - Sampling Schedule
+    /// Whether the pointer needs frequent samples: it has not been sampled yet, moved
+    /// recently, or is dwelling in a corner that has not triggered.
+    func needsFrequentSampling(at time: TimeInterval) -> Bool {
+        lastLocation == nil
+            || time - lastActivity < Self.activeSamplingWindow
+            || (currentCorner != nil && !didTriggerCorner)
+    }
+
+    /// When the pointer becomes inactive, if auto-hide has not already triggered.
+    var inactivityDeadline: TimeInterval? {
+        guard let inactivityDelay, !didTriggerInactivity else { return nil }
+        return lastActivity + inactivityDelay
+    }
+
     // MARK: - Pointer Updates
     mutating func update(
         location: CGPoint,

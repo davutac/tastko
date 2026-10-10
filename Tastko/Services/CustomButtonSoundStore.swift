@@ -7,17 +7,26 @@ import Foundation
 final class CustomButtonSoundStore {
     static let shared = CustomButtonSoundStore()
 
+    /// Key sounds play on every press, so long clips are rejected.
+    static let defaultMaximumDuration: TimeInterval = 1
+
     private let directory: URL
     private let preference: Defaults.Key<StoredButtonSound?>
+    private let maximumDuration: TimeInterval
 
     // MARK: - Initialization
-    init(directory: URL? = nil, preference: Defaults.Key<StoredButtonSound?>? = nil) {
+    init(
+        directory: URL? = nil,
+        preference: Defaults.Key<StoredButtonSound?>? = nil,
+        maximumDuration: TimeInterval = CustomButtonSoundStore.defaultMaximumDuration
+    ) {
         self.directory =
             directory
             ?? URL.applicationSupportDirectory
             .appending(path: Bundle.main.bundleIdentifier ?? "Tastko", directoryHint: .isDirectory)
             .appending(path: "ButtonSounds", directoryHint: .isDirectory)
         self.preference = preference ?? .customButtonSound
+        self.maximumDuration = maximumDuration
     }
 
     // MARK: - Saved Sound
@@ -47,6 +56,9 @@ final class CustomButtonSoundStore {
             try fileManager.copyItem(at: source, to: destination)
             let player = try AVAudioPlayer(contentsOf: destination)
             guard player.prepareToPlay() else { throw ImportError.unreadableAudio }
+            guard player.duration <= maximumDuration else {
+                throw ImportError.tooLong(maximumDuration)
+            }
         }
         catch {
             try? fileManager.removeItem(at: destination)
@@ -64,11 +76,21 @@ final class CustomButtonSoundStore {
     }
 
     // MARK: - Import Error
-    private enum ImportError: LocalizedError {
+    enum ImportError: LocalizedError, Equatable {
         case unreadableAudio
+        case tooLong(TimeInterval)
 
         var errorDescription: String? {
-            "This file could not be read as audio. Choose a different sound file."
+            switch self {
+            case .unreadableAudio:
+                "This file could not be read as audio. Choose a different sound file."
+            case .tooLong(let maximum):
+                "Key sounds can be at most \(Self.format(maximum)) long. Choose a shorter sound file."
+            }
+        }
+
+        private static func format(_ seconds: TimeInterval) -> String {
+            Duration.seconds(seconds).formatted(.units(width: .wide))
         }
     }
 }

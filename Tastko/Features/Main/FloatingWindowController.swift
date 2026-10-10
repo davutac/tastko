@@ -70,24 +70,35 @@ final class FloatingWindowController {
             )
             .keyboardTheme()
         }
-        if presentationState == .expanded && !isScreenLocked,
-            let sentenceService,
-            sentenceService.isGenerating || !sentenceService.suggestions.isEmpty
-                || sentenceService.error != nil
-        {
-            floatingWindowManager.showChild(
-                .keyboardCompanion,
-                attachedTo: .main,
-                configuration: .keyboardCompanion
-            ) {
-                KeyboardCompanionView()
-                    .keyboardTheme()
-            }
-        }
-        else {
-            floatingWindowManager.hideChild(.keyboardCompanion, attachedTo: .main)
-        }
+        updateCompanionWindow(refreshingContent: true)
         updatePredictionLifecycle()
+    }
+
+    // MARK: - Companion Window
+    /// Shows the sentence companion while it has something to present. Its content
+    /// observes the sentence service, so suggestion changes only need this visibility
+    /// update, not a rebuild of the keyboard window.
+    func updateCompanionWindow(refreshingContent: Bool = false) {
+        let hasContent =
+            sentenceService.map {
+                $0.isGenerating || !$0.suggestions.isEmpty || $0.error != nil
+            } ?? false
+        guard isVisible, presentationState == .expanded, !isScreenLocked, hasContent else {
+            floatingWindowManager.hideChild(.keyboardCompanion, attachedTo: .main)
+            return
+        }
+        guard
+            refreshingContent
+                || !floatingWindowManager.isChildVisible(.keyboardCompanion, attachedTo: .main)
+        else { return }
+        floatingWindowManager.showChild(
+            .keyboardCompanion,
+            attachedTo: .main,
+            configuration: .keyboardCompanion
+        ) {
+            KeyboardCompanionView()
+                .keyboardTheme()
+        }
     }
 
     func hide() {

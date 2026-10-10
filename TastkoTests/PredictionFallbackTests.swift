@@ -296,3 +296,87 @@ private final class FallbackEventPoster: KeyboardEventPosting {
     func postTextToSystemFocus(_ text: String) throws {}
     func postKey(_ key: Key, modifiers: KeyModifiers, keyDown: Bool) throws {}
 }
+
+// MARK: - Per-Keystroke Accessibility Cost
+@MainActor
+struct PredictionKeystrokeCostTests {
+    @Test func readableFieldSkipsTheFullSnapshotBeforeEachKey() {
+        let fixture = CountingFixture(snapshot: .readable(predictionContext("hello")))
+        fixture.provider.startObserving({})
+        defer { fixture.provider.stopObserving() }
+        _ = fixture.provider.capture(language: "en")
+        let snapshotsAfterCapture = fixture.snapshots
+
+        for key in [Key.a, .b, .c] {
+            fixture.provider.prepareForInput()
+            fixture.provider.didPostKey(KeyStroke(key))
+        }
+
+        #expect(fixture.snapshots == snapshotsAfterCapture)
+        #expect(fixture.focusChecks == 3)
+    }
+
+    @Test func movedFocusFallsBackToAFullSnapshotAndBuffersAnUnreadableField() {
+        let readable = predictionContext("hello")
+        let fixture = CountingFixture(snapshot: .readable(readable))
+        fixture.provider.startObserving({})
+        defer { fixture.provider.stopObserving() }
+        _ = fixture.provider.capture(language: "en")
+        let unreadableTarget = predictionContext("", elementID: 2).target
+        fixture.snapshot = .unreadable(unreadableTarget, selection: nil)
+        fixture.focusedTarget = unreadableTarget
+        let snapshotsAfterCapture = fixture.snapshots
+
+        fixture.provider.prepareForInput()
+        fixture.provider.didPostText("he")
+
+        #expect(fixture.snapshots == snapshotsAfterCapture + 1)
+        #expect(fixture.provider.capture(language: "en")?.input.context == "he")
+    }
+
+    @Test func focusLostDuringPostingResetsTheBufferWithoutAFullSnapshot() {
+        let target = predictionContext("").target
+        let fixture = CountingFixture(snapshot: .unreadable(target, selection: nil))
+        fixture.focusedTarget = target
+        fixture.provider.startObserving({})
+        defer { fixture.provider.stopObserving() }
+        fixture.provider.prepareForInput()
+        fixture.provider.didPostText("he")
+        let snapshotsBeforeKey = fixture.snapshots
+
+        fixture.provider.prepareForInput()
+        fixture.focusedTarget = predictionContext("", elementID: 2).target
+        fixture.provider.didPostText("llo")
+
+        #expect(fixture.snapshots == snapshotsBeforeKey + 1)
+        #expect(fixture.provider.capture(language: "en") == nil)
+    }
+}
+
+// MARK: - Counting Fixture
+@MainActor
+private final class CountingFixture {
+    var snapshot: PredictionContextSnapshot
+    var focusedTarget: FocusedKeyboardTarget?
+    private(set) var snapshots = 0
+    private(set) var focusChecks = 0
+
+    lazy var provider = AccessibilityPredictionContextProvider(
+        observesSystem: false,
+        inputSource: { "en" },
+        snapshot: { [unowned self] _ in
+            snapshots += 1
+            return snapshot
+        },
+        focusMatches: { [unowned self] target in
+            focusChecks += 1
+            return focusedTarget.map { $0.hasSameFocus(as: target) } ?? false
+        }
+    )
+
+    // MARK: - Initialization
+    init(snapshot: PredictionContextSnapshot) {
+        self.snapshot = snapshot
+        if case .readable(let context) = snapshot { focusedTarget = context.target }
+    }
+}

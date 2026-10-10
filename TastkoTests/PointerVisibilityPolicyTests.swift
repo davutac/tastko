@@ -10,6 +10,39 @@ struct PointerVisibilityPolicyTests {
     private let outside = CGPoint(x: 700, y: 400)
     private let corner = CGPoint(x: 1_439, y: 1)
 
+    // MARK: - Sampling Schedule
+    @Test func samplesFrequentlyOnlyWhileActiveOrDwelling() {
+        var policy = PointerVisibilityPolicy()
+        #expect(policy.needsFrequentSampling(at: 0))
+        _ = sample(&policy, outside, at: 0)
+        #expect(policy.needsFrequentSampling(at: 0.4))
+        #expect(!policy.needsFrequentSampling(at: 0.6))
+        _ = sample(&policy, outside, at: 5)
+        #expect(!policy.needsFrequentSampling(at: 5))
+        _ = sample(&policy, corner, at: 6)
+        #expect(policy.needsFrequentSampling(at: 7))
+        #expect(sample(&policy, corner, at: 7.5) == .toggle)
+        #expect(!policy.needsFrequentSampling(at: 8))
+    }
+
+    @Test func inactivityDeadlineFollowsActivityAndClearsAfterHiding() {
+        var policy = PointerVisibilityPolicy()
+        _ = sample(&policy, outside, at: 0)
+        #expect(policy.inactivityDeadline == PointerVisibilityPolicy.defaultInactivityDelay)
+        _ = sample(&policy, CGPoint(x: 701, y: 400), at: 3)
+        #expect(policy.inactivityDeadline == 3 + PointerVisibilityPolicy.defaultInactivityDelay)
+        #expect(sample(&policy, CGPoint(x: 701, y: 400), at: 18) == .hideForInactivity)
+        #expect(policy.inactivityDeadline == nil)
+        _ = policy.update(
+            location: outside,
+            screenFrames: [screen],
+            mouseButtonIsDown: false,
+            time: 19,
+            inactivityDelay: nil
+        )
+        #expect(policy.inactivityDeadline == nil)
+    }
+
     // MARK: - Corner Dwell
     @Test func cornerRequiresDwellAndOnlyRearmsAfterLeaving() {
         var policy = PointerVisibilityPolicy()

@@ -100,6 +100,31 @@ struct CustomButtonSoundStoreTests {
         )
     }
 
+    @Test func soundLongerThanTheLimitIsRejectedAndKeepsSavedSound() throws {
+        defer { cleanUp() }
+        let storageDirectory = directory.appending(path: "Saved")
+        let source = try #require(ButtonSound.cherryMXBlue.fileURL)
+        try CustomButtonSoundStore(directory: storageDirectory, preference: preference)
+            .importSound(from: source)
+        let originalSound = Defaults[preference]
+        let duration = try AVAudioPlayer(contentsOf: source).duration
+        let store = CustomButtonSoundStore(
+            directory: storageDirectory,
+            preference: preference,
+            maximumDuration: duration / 2
+        )
+
+        #expect(throws: CustomButtonSoundStore.ImportError.tooLong(duration / 2)) {
+            try store.importSound(from: #require(ButtonSound.topre.fileURL))
+        }
+
+        #expect(Defaults[preference] == originalSound)
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: storageDirectory.path).count == 1
+        )
+        #expect(CustomButtonSoundStore.defaultMaximumDuration >= 1)
+    }
+
     // MARK: - Cleanup
     private func cleanUp() {
         UserDefaults.standard.removePersistentDomain(forName: suiteName)

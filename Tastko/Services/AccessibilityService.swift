@@ -381,12 +381,12 @@ final class AccessibilityService {
             textForRange: { self.string(for: $0, in: element) }
         )
         // Text reads are not atomic. Reject them if focus moved in the meantime.
-        return isStillFocused(target) ? snapshot : .ineligible
+        return isFocused(on: target) ? snapshot : .ineligible
     }
 
     // MARK: - Focus Revalidation
     /// Confirms focus stayed on the target with two requests instead of resolving it again.
-    private func isStillFocused(_ target: FocusedKeyboardTarget) -> Bool {
+    func isFocused(on target: FocusedKeyboardTarget) -> Bool {
         guard let application = try? focusedApplicationElement(),
             (try? processIdentifier(for: application)) == target.processIdentifier,
             let focusedElement: AXUIElement = try? copyAttribute(

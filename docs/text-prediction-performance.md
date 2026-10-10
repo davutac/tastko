@@ -31,6 +31,12 @@ Measured locally on September 5, 2026 with Xcode 27 beta 6 and optimized builds:
 
 Native timings were remeasured after adopting the candidate API; context and AI measurements are from the earlier provider benchmark with unchanged context capture and model generation. AI timings exclude the 150 ms debounce. One of eight model samples returned no valid prefix completion and is excluded from the first-valid timing. These small samples show fast native completion, but the 700 ms AI target is not consistently met; first-valid p95 plus debounce is approximately 1083 ms. Context capture and provider benchmarks were measured separately, not as end-to-end edit-to-display timings. Completion insertion and retained external-app focus were checked in TextEdit, Chrome, and a VS Code Insiders scratch editor.
 
+### Capture cost per keystroke
+
+Every key Tastko posts used to wait for a full context capture first, and fields without readable text took a second capture after posting. Now, when the last capture could read the field, the key waits only for a two-request focus check; the full capture runs only for fields without readable text. After posting, a focus check replaces the second capture. The table above puts a full capture at about 6–14 ms in a responsive app, so this removes that wait from before each key in readable fields. The saving is larger in slow apps. This is derived from the capture timing above, not a new end-to-end measurement.
+
+The fallback poll captures the whole field each time. It runs every 250 ms for fields that send no change notifications, and every second for fields that do, since key presses, clicks, and focus changes already trigger their own refresh.
+
 ## Sentence suggestions
 
 Run `bash script/benchmark_sentences.sh` to measure the actual sentence provider

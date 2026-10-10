@@ -56,7 +56,7 @@ final class KeyboardService {
         let physicalKeyboard = physicalKeyboard ?? PhysicalKeyboardState()
         self.physicalKeyboard = physicalKeyboard
         self.synthesizer = KeyEventSynthesizer(poster: eventPoster) {
-            physicalKeyboard.snapshot.modifierFlags
+            physicalKeyboard.modifierFlags
         }
         self.targetResolver = targetResolver
         self.eventPoster = eventPoster
@@ -71,13 +71,13 @@ final class KeyboardService {
 
     /// Modifiers held physically, plus Fn while Tastko holds it.
     var heldModifiers: Set<ModifierKey> {
-        physicalKeyboard.snapshot.modifiers
+        physicalKeyboard.modifiers
             .union(synthesizer.modifiers.isFunctionHeld ? [.function] : [])
     }
 
     var effectiveModifiers: Set<ModifierKey> { latchedModifiers.union(heldModifiers) }
 
-    var isCapsLockEnabled: Bool { physicalKeyboard.snapshot.isCapsLockEnabled }
+    var isCapsLockEnabled: Bool { physicalKeyboard.isCapsLockEnabled }
 
     /// Flags a key pressed now would carry.
     var modifierFlags: KeyModifiers {
