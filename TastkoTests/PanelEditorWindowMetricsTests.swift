@@ -140,4 +140,23 @@ struct PanelEditorWindowMetricsTests {
             ) <= 1
         )
     }
+
+    // MARK: - Titlebar Zoom
+    @Test func titlebarDoubleClickCannotZoomTheResizableWindow() throws {
+        let configuration = PanelEditorWindowMetrics.expandedConfiguration(
+            size: CGSize(width: 820, height: 430),
+            origin: CGPoint(x: 150, y: 90),
+            minimumScale: 0.5,
+            panelSize: CGSize(width: 708, height: 237)
+        )
+        let panel = AlwaysOnTopPanel(configuration: configuration)
+        defer { panel.close() }
+        let delegate = try #require(panel.delegate)
+
+        #expect(panel.styleMask.contains(.resizable))
+        #expect(
+            delegate.windowShouldZoom?(panel, toFrame: panel.frame.insetBy(dx: -200, dy: -200))
+                == false
+        )
+    }
 }

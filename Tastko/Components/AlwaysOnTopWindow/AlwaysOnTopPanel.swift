@@ -207,6 +207,12 @@ final class AlwaysOnTopPanel: NSPanel, NSWindowDelegate {
         publishWindowOrigin()
     }
 
+    /// Double-clicking the titlebar still zooms through the hidden zoom button,
+    /// which would stretch the keyboard to fill the screen.
+    func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
+        false
+    }
+
     func windowDidEndLiveResize(_ notification: Notification) {
         liveResizeDidChange?(false)
         publishWindowFrame()
