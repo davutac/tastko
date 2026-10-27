@@ -105,6 +105,9 @@ final class PredictionContextObservation {
             AXIsProcessTrusted()
         else { return }
 
+        let application = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(application, 0.05)
+        exposeAccessibilityTree(of: application)
         var observer: AXObserver?
         let result = AXObserverCreate(
             pid,
@@ -128,8 +131,6 @@ final class PredictionContextObservation {
         )
         guard result == .success, let observer else { return }
 
-        let application = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(application, 0.05)
         self.observer = observer
         self.application = application
         self.processIdentifier = pid
@@ -144,6 +145,19 @@ final class PredictionContextObservation {
             )
         }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+    }
+
+    // MARK: - Electron Accessibility
+    /// Electron apps build their accessibility tree only when an assistive app asks
+    /// for it. Until then they report no focused element, so predictions see only the
+    /// keys Tastko typed, not text that was already there or typed another way. The
+    /// tree appears about two seconds later. Apps without the attribute ignore it.
+    private func exposeAccessibilityTree(of application: AXUIElement) {
+        AXUIElementSetAttributeValue(
+            application,
+            "AXManualAccessibility" as CFString,
+            kCFBooleanTrue
+        )
     }
 
     // MARK: - Text and Selection
