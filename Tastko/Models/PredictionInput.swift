@@ -92,6 +92,19 @@ nonisolated struct PredictionInput: Equatable, Sendable {
         return PredictionInsertion(text: word + suffix, deleteBackwardCount: prefix.count)
     }
 
+    // MARK: - Swiped Words
+    /// How a swiped word goes in at the cursor. It is always a new word: after a word fragment
+    /// it takes a space before it, otherwise the space a suggestion would, and it brings its own
+    /// space where a suggestion does. Nil for text that is no word.
+    func swipedWordParts(_ candidate: String) -> SwipedWordParts? {
+        guard let word = Self.normalizedWord(candidate).map(matchingApostrophes) else { return nil }
+        return SwipedWordParts(
+            leading: prefix.isEmpty ? leadingSpace : " ",
+            word: word,
+            trailing: isAtLineEnd ? " " : ""
+        )
+    }
+
     // MARK: - Punctuation Spacing
     private var leadingSpace: String {
         guard prefix.isEmpty, let preceding = context.last, !preceding.isWhitespace else {
@@ -174,4 +187,19 @@ nonisolated struct PredictionInput: Equatable, Sendable {
 nonisolated struct PredictionInsertion: Equatable, Sendable {
     let text: String
     let deleteBackwardCount: Int
+}
+
+// MARK: - SwipedWordParts
+/// A swiped word and the spaces around it.
+nonisolated struct SwipedWordParts: Equatable, Sendable {
+    let leading: String
+    let word: String
+    let trailing: String
+
+    var text: String { leading + word + trailing }
+
+    /// The same spacing around another word.
+    func replacingWord(with word: String) -> Self {
+        Self(leading: leading, word: word, trailing: trailing)
+    }
 }

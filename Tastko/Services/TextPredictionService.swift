@@ -81,6 +81,7 @@ final class TextPredictionService {
     @ObservationIgnored private var pendingModel: (revision: Int, input: PredictionInput)?
     @ObservationIgnored private var lastAvailability: String?
     @ObservationIgnored private var automaticSpace: PredictionSpace?
+    @ObservationIgnored private var swipeAlternatives: SwipeAlternatives?
 
     // MARK: - Initialization
     init(
@@ -164,6 +165,7 @@ final class TextPredictionService {
         let next = contextProvider.capture(language: language)
         if next != nil { PredictionTiming.record("context", since: started) }
         if replaceAutomaticSpace(before: next) { return }
+        if keepSwipeAlternatives(next) { return }
         let availability = modelProvider.unavailableReason(language: language)
         guard let next else {
             // A keypress may already have invalidated context while keeping its words.
@@ -304,6 +306,7 @@ final class TextPredictionService {
         modelPending = false
         if !keepingPresentation {
             automaticSpace = nil
+            swipeAlternatives = nil
             typedPrefix = ""
             suggestions = []
             displayedContext = nil
@@ -382,6 +385,9 @@ final class TextPredictionService {
     /// Accepts a visible word, capturing and validating the field once before posting.
     @discardableResult
     func accept(word: String) -> Bool {
+        if let swipeAlternatives, swipeAlternatives.readings.contains(word) {
+            return replaceSwipedWord(with: word)
+        }
         guard let choice = choice(for: word) else { return false }
         return commit(choice.word, in: choice.context)
     }
@@ -414,5 +420,81 @@ final class TextPredictionService {
             return true
         }
         catch { return false }
+    }
+
+    // MARK: - Swipe Typing
+    /// The field around the cursor for a swiped word, or nil while predictions are off or the
+    /// field can't be read.
+    func swipeContext() -> PredictionContext? {
+        guard isRunning, enabled() else { return nil }
+        return contextProvider.capture(language: language())
+    }
+
+    /// Inserts a swiped word at `context`'s cursor, spaced as a suggestion is, and offers its
+    /// other readings in place of the suggestions.
+    @discardableResult
+    func insertSwipedWord(
+        _ word: String,
+        alternatives: [String],
+        context: PredictionContext
+    ) -> Bool {
+        guard let parts = context.input.swipedWordParts(word) else { return false }
+        let insertion = PredictionInsertion(text: parts.text, deleteBackwardCount: 0)
+        invalidate(keepingPresentation: true)
+        automaticSpace = nil
+        swipeAlternatives = nil
+        do { try insert(insertion, context.target) }
+        catch { return false }
+        automaticSpace = PredictionSpace(insertion: insertion, context: context)
+        offer(SwipeAlternatives(inserted: parts, readings: alternatives, context: context))
+        scheduleRefresh(delay: .milliseconds(20))
+        return true
+    }
+
+    /// Shows a swiped word's other readings as the suggestions.
+    private func offer(_ alternatives: SwipeAlternatives?) {
+        swipeAlternatives = alternatives
+        guard let alternatives, isRunning else { return }
+        suggestions = alternatives.readings
+        typedPrefix = ""
+        hasTextContext = true
+        displayedContext = nil
+    }
+
+    /// Keeps a swiped word's readings while the field shows the word, or before it lands. Drops
+    /// them, and lets suggestions follow the field again, once anything else changed it.
+    private func keepSwipeAlternatives(_ next: PredictionContext?) -> Bool {
+        guard let pending = swipeAlternatives else { return false }
+        if let next, pending.awaitingInsertion, next == pending.before { return true }
+        guard let next, pending.isShown(in: next) else {
+            swipeAlternatives = nil
+            suggestions = []
+            return false
+        }
+        swipeAlternatives?.awaitingInsertion = false
+        completionContext = next
+        needsRefresh = false
+        return true
+    }
+
+    /// Puts another reading of the swiped word in its place, once the field shows the word.
+    private func replaceSwipedWord(with reading: String) -> Bool {
+        guard let pending = swipeAlternatives, isRunning, enabled(), !shortcutsActive(),
+            let current = contextProvider.capture(language: language()),
+            pending.isShown(in: current)
+        else {
+            invalidate()
+            return false
+        }
+        let replacement = pending.replacement(with: reading)
+        invalidate(keepingPresentation: true)
+        automaticSpace = nil
+        swipeAlternatives = nil
+        do { try insert(replacement, current.target) }
+        catch { return false }
+        automaticSpace = PredictionSpace(insertion: replacement, context: current)
+        offer(pending.swapped(to: reading, at: current))
+        scheduleRefresh(delay: .milliseconds(20))
+        return true
     }
 }

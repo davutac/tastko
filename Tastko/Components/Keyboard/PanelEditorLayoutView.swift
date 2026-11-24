@@ -4,8 +4,11 @@ import SwiftUI
 struct PanelEditorLayoutView: View {
     @Environment(\.keyboardLanguageService) private var keyboardLanguageService
     @Environment(\.keyboardService) private var keyboardService
+    @Environment(\.swipeTypingController) private var swipeTyping
 
     let panel: PanelEditorPanel
+    /// Whether a letter press may become a swipe. The login window keyboard turns it off.
+    var allowsSwipeTyping = true
 
     // MARK: - Body
     var body: some View {
@@ -34,13 +37,28 @@ struct PanelEditorLayoutView: View {
                 height: bounds.height * scale,
                 alignment: .topLeading
             )
+            .overlay(alignment: .topLeading) {
+                SwipeTrailView(controller: swipeTyping, origin: bounds.origin, scale: scale)
+            }
             .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
         .onAppear {
             keyboardLanguageService.refreshSelectedLanguage()
         }
-        .onDisappear { keyboardService.cancelPresses() }
+        .onDisappear {
+            keyboardService.cancelPresses()
+            swipeTyping.configure(panel: nil)
+        }
         .onChange(of: panel.id) { keyboardService.cancelPresses() }
+        .onChange(
+            of: SwipeTypingConfiguration(panel: panel, allowed: allowsSwipeTyping),
+            initial: true
+        ) {
+            swipeTyping.configure(panel: allowsSwipeTyping ? panel : nil)
+        }
+        .onChange(of: keyboardLanguageService.selectedLanguageID) {
+            swipeTyping.configure(panel: allowsSwipeTyping ? panel : nil)
+        }
     }
 
     // MARK: - Metrics
@@ -62,4 +80,11 @@ struct PanelEditorLayoutView: View {
             availableSize.height / size.height
         )
     }
+}
+
+// MARK: - SwipeTypingConfiguration
+/// What swipe typing is prepared for: the shown panel, where swipes may start.
+private struct SwipeTypingConfiguration: Equatable {
+    let panel: PanelEditorPanel
+    let allowed: Bool
 }

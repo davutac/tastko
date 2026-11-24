@@ -186,6 +186,13 @@ final class KeyboardService {
         }
     }
 
+    /// Releases latched modifiers that text inserted another way consumed, as `type(_:)` does.
+    /// Failures are recorded, not thrown.
+    func releaseLatchedModifiers() {
+        do { try synthesizer.releaseModifiers() }
+        catch { _ = recordFailure(error) }
+    }
+
     /// Releases held keys, latched modifiers, and Fn. Failures are recorded, not thrown.
     func releaseAll() {
         cancelPresses()

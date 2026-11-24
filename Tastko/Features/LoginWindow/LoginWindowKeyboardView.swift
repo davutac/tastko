@@ -28,7 +28,7 @@ struct LoginWindowKeyboardView: View {
             }
             .padding(.horizontal, 12)
             .frame(height: Self.headerHeight)
-            PanelEditorLayoutView(panel: keyboard.panel)
+            PanelEditorLayoutView(panel: keyboard.panel, allowsSwipeTyping: false)
                 .padding(KeyboardDesign.Metrics.panelInset)
         }
         .background(palette.chassis)

@@ -31,7 +31,14 @@ struct PanelEditorButtonView: View {
                 hitRegion: hitRegion,
                 mousePressed: { input.press(button, with: $0.actionTrigger) },
                 mouseReleasedInside: { _ in input.release(button) },
-                mouseCancelled: { input.release(button) }
+                mouseCancelled: { input.cancel(button) },
+                pointer: KeyPointerTracking(
+                    began: { input.pointerDown(button, at: panelPoint($0), time: $1) },
+                    moved: { input.pointerMoved(button, to: panelPoint($0), time: $1) },
+                    ended: {
+                        input.pointerUp(button, at: panelPoint($0), time: $1, inside: $2)
+                    }
+                )
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityHidden(true)
@@ -49,11 +56,22 @@ struct PanelEditorButtonView: View {
         ) {
             input.activate(button, with: .rightClick)
         }
-        .onDisappear { input.release(button) }
+        .onDisappear { input.cancel(button) }
         .onChange(of: keyboardService.inputSession) {
-            input.release(button)
+            input.cancel(button)
             pressedButton = nil
         }
+    }
+
+    // MARK: - Pointer Positions
+    /// A point in this key's view as a point in the panel's coordinates, where swipe typing
+    /// reads every key.
+    private func panelPoint(_ point: CGPoint) -> CGPoint {
+        let scale = scale > 0 ? scale : 1
+        return CGPoint(
+            x: button.frame.minX + point.x / scale,
+            y: button.frame.minY + point.y / scale
+        )
     }
 
     // MARK: - State
