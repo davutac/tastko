@@ -5,12 +5,13 @@ import Testing
 @testable import Tastko
 
 // MARK: - SwipeVocabularyTests
-@MainActor
+// Off the main actor: decoding in a Debug build is slow, and main-actor tests that wait on
+// timers share that actor.
 struct SwipeVocabularyTests {
     // MARK: - Decoding
     @Test(arguments: ["hello", "world", "keyboard", "typing", "quick", "please", "don't", "i'm"])
     func englishWordsDecodeOnAMacQWERTYGrid(word: String) throws {
-        let vocabulary = try #require(SwipeVocabulary(languageCode: "en-US"))
+        let vocabulary = try #require(SwipeTestVocabulary.english)
         let map = try #require(SwipeKeyMap(letterKeys: SwipeGrid.qwerty))
         let readings = vocabulary.readings(
             SwipeGrid.stroke(word, on: map),
@@ -22,7 +23,7 @@ struct SwipeVocabularyTests {
 
     @Test(arguments: ["zeit", "über", "straße", "müssen", "schön"])
     func germanWordsDecodeOnQWERTZ(word: String) throws {
-        let vocabulary = try #require(SwipeVocabulary(languageCode: "de"))
+        let vocabulary = try #require(SwipeTestVocabulary.german)
         let map = try #require(SwipeKeyMap(letterKeys: SwipeGrid.qwertz))
         let readings = vocabulary.readings(
             SwipeGrid.stroke(word, on: map),
@@ -33,7 +34,7 @@ struct SwipeVocabularyTests {
     }
 
     @Test func listedWordsAreNeverRead() throws {
-        let vocabulary = try #require(SwipeVocabulary(languageCode: "en"))
+        let vocabulary = try #require(SwipeTestVocabulary.english)
         let map = try #require(SwipeKeyMap(letterKeys: SwipeGrid.qwerty))
         let readings = vocabulary.readings(
             SwipeGrid.stroke("damn", on: map),
@@ -52,13 +53,13 @@ struct SwipeVocabularyTests {
 
     // MARK: - Spelling
     @Test func englishCapitalisesI() throws {
-        let vocabulary = try #require(SwipeVocabulary(languageCode: "en"))
+        let vocabulary = try #require(SwipeTestVocabulary.english)
         #expect(vocabulary.spelling(of: "i'm", after: nil) == "I'm")
         #expect(vocabulary.spelling(of: "ice", after: nil) == "ice")
     }
 
     @Test func germanNounsTakeTheirCapital() throws {
-        let vocabulary = try #require(SwipeVocabulary(languageCode: "de"))
+        let vocabulary = try #require(SwipeTestVocabulary.german)
         #expect(vocabulary.spelling(of: "haus", after: nil) == "Haus")
         #expect(vocabulary.spelling(of: "leben", after: "zu") == "leben")
         #expect(vocabulary.spelling(of: "leben", after: "das") == "Leben")
@@ -85,7 +86,6 @@ struct SwipeVocabularyTests {
 }
 
 // MARK: - SwipePathFilterTests
-@MainActor
 struct SwipePathFilterTests {
     @Test func backAndForthJankIsCutOutWithItsTime() {
         // Rightwards at 4 pt a step, a jank back 24 pt and forward again at x = 100.
@@ -115,7 +115,7 @@ struct SwipePathFilterTests {
     }
 
     @Test func aJankedSwipeStillReadsItsWord() throws {
-        let vocabulary = try #require(SwipeVocabulary(languageCode: "en"))
+        let vocabulary = try #require(SwipeTestVocabulary.english)
         let map = try #require(SwipeKeyMap(letterKeys: SwipeGrid.qwerty))
         let clean = SwipeGrid.stroke("typing", on: map)
         // Partway along, the pointer jumps back more than half a key and returns: read as it
@@ -262,7 +262,7 @@ struct SwipeTypingControllerTests {
             inputAllowed: allowed,
             language: { ("com.apple.keylayout.US", "en") },
             letter: { SwipeGrid.letter(for: $0) },
-            vocabulary: { SwipeVocabulary(languageCode: $0) }
+            vocabulary: { SwipeTestVocabulary.named($0) }
         )
         controller.configure(panel: SwipeGrid.panel)
         return controller
@@ -279,10 +279,24 @@ struct SwipeTypingControllerTests {
     }
 }
 
+// MARK: - SwipeTestVocabulary
+/// Each bundled vocabulary, loaded once for all the tests that read swipes.
+enum SwipeTestVocabulary {
+    static let english = SwipeVocabulary(languageCode: "en")
+    static let german = SwipeVocabulary(languageCode: "de")
+
+    static func named(_ language: String) -> SwipeVocabulary? {
+        switch language {
+        case "en": english
+        case "de": german
+        default: nil
+        }
+    }
+}
+
 // MARK: - SwipeGrid
 /// A Mac keyboard's letter rows as a Panel Editor panel lays them out: 38 × 37 pt keys on a
 /// 40 pt pitch, each row staggered as on the hardware.
-@MainActor
 enum SwipeGrid {
     static let qwerty = letterKeys(rows: ["qwertyuiop", "asdfghjkl", "zxcvbnm"])
     /// German QWERTZ, with ß on the number row as on the hardware.

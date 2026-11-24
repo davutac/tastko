@@ -57,7 +57,9 @@ import Testing
         let service = try fixture(adapter)
         let task = Task { await service.refreshProvidersWhileVisible(interval: .milliseconds(30)) }
         defer { task.cancel() }
-        try await withAIDeadline(seconds: 3) {
+        // Parallel main-actor suites can hold off the refresh loop for seconds, so the deadline
+        // only catches a loop that stalls; it returns as soon as two rounds have run.
+        try await withAIDeadline(seconds: 10) {
             while await adapter.discoveryCount < AIProviderID.allCases.count * 2 {
                 try await Task.sleep(for: .milliseconds(10))
             }

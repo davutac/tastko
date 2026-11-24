@@ -120,7 +120,7 @@ struct SwipeTypingInputTests {
             inputAllowed: { true },
             language: { ("com.apple.keylayout.US", "en") },
             letter: { SwipeGrid.letter(for: $0) },
-            vocabulary: { SwipeVocabulary(languageCode: $0) }
+            vocabulary: { SwipeTestVocabulary.named($0) }
         )
         swipe.configure(panel: SwipeGrid.panel)
         return KeyInputController(

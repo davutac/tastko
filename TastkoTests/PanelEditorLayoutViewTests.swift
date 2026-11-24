@@ -67,7 +67,7 @@ struct PanelEditorLayoutViewTests {
             inputAllowed: { true },
             language: { ("com.apple.keylayout.US", "en") },
             letter: { $0 == .a ? "a" : $0 == .s ? "s" : nil },
-            vocabulary: { SwipeVocabulary(languageCode: $0) }
+            vocabulary: { SwipeTestVocabulary.named($0) }
         )
         let panel = PanelEditorPanel(
             id: "trail",
