@@ -8,6 +8,7 @@ extension EnvironmentValues {
     @Entry var floatingWindowManager: FloatingWindowManager = .shared
     @Entry var keyboardService: KeyboardService = .shared
     @Entry var keyInputController: KeyInputController = .shared
+    @Entry var swipeTypingController: SwipeTypingController = .shared
     @Entry var textPredictionService: TextPredictionService = .shared
     @Entry var keyboardLanguageService: KeyboardLanguageService = .shared
     @Entry var panelEditorProfileStore: PanelEditorProfileStore = .shared

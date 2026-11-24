@@ -158,6 +158,7 @@ extension Defaults.Keys {
         default: ""
     )
     static let textPredictionEnabled = Defaults.Key<Bool>("textPredictionEnabled", default: true)
+    static let swipeTypingEnabled = Defaults.Key<Bool>("swipeTypingEnabled", default: true)
 
     static let floatingWindowSize = Defaults.Key<StoredWindowSize>(
         "floatingWindowSize",

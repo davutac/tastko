@@ -21,7 +21,12 @@ final class WindowMousePassthrough {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
             MainActor.assumeIsolated { self?.update() }
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
+        let localEvents = events.union([.leftMouseUp, .rightMouseUp])
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: localEvents) {
+            [weak self] event in
+            // A drag that began in this window, such as a swipe across the keys, stays with it
+            // over the gaps between keys; the pointer's region is checked again on release.
+            guard !Self.isDrag(event.type) else { return event }
             MainActor.assumeIsolated { self?.update() }
             return event
         }
@@ -31,6 +36,12 @@ final class WindowMousePassthrough {
     isolated deinit {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
+    }
+
+    // MARK: - Drags
+    /// Whether a local event continues a drag the window already owns.
+    nonisolated static func isDrag(_ type: NSEvent.EventType) -> Bool {
+        type == .leftMouseDragged || type == .rightMouseDragged
     }
 
     // MARK: - Hit Testing

@@ -1,6 +1,6 @@
 # Tastko
 
-A floating accessibility keyboard for macOS. Type into other apps without taking focus, use custom Panel Editor layouts, and get word suggestions from macOS or Apple Intelligence.
+A floating accessibility keyboard for macOS. Type into other apps without taking focus, use custom Panel Editor layouts, swipe across the letters to type whole words in English and German, and get word suggestions from macOS or Apple Intelligence.
 
 ![Tastko accessibility keyboard with an English layout](docs/images/tastko-keyboard.webp)
 

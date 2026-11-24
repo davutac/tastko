@@ -70,6 +70,22 @@ struct KeyMouseEventViewTests {
         #expect(recorder.events == ["press", "cancel"])
     }
 
+    @Test func trackedPressFollowsThePointerPastTheKeyUntilRelease() throws {
+        let view = KeyMouseEventNSView(frame: NSRect(x: 0, y: 0, width: 46, height: 77))
+        let recorder = KeyMouseEventRecorder()
+        recorder.disposition = .tracking
+        view.delegate = recorder
+        view.mouseDown(with: try mouseEvent(.leftMouseDown, at: CGPoint(x: 20, y: 20), in: view))
+        view.mouseDragged(
+            with: try mouseEvent(.leftMouseDragged, at: CGPoint(x: 90, y: 20), in: view)
+        )
+        view.mouseExited(
+            with: try mouseEvent(.leftMouseDragged, at: CGPoint(x: 90, y: 20), in: view)
+        )
+        view.mouseUp(with: try mouseEvent(.leftMouseUp, at: CGPoint(x: 120, y: 20), in: view))
+        #expect(recorder.events == ["begin", "press", "drag", "end:outside"])
+    }
+
     // MARK: - Fixtures
     private func mouseEvent(
         _ type: NSEvent.EventType,
@@ -118,6 +134,8 @@ struct KeyMouseEventViewTests {
 @MainActor
 private final class KeyMouseEventRecorder: KeyMouseEventNSViewDelegate {
     var events: [String] = []
+    /// What drags answer; standard drags are left unrecorded, as before tracking existed.
+    var disposition = KeyPointerDisposition.standard
 
     // MARK: - Events
     func keyMouseEventView(_ view: KeyMouseEventNSView, didPress button: KeyMouseButton) {
@@ -128,5 +146,35 @@ private final class KeyMouseEventRecorder: KeyMouseEventNSViewDelegate {
     }
     func keyMouseEventViewDidCancel(_ view: KeyMouseEventNSView) {
         events.append("cancel")
+    }
+
+    // MARK: - Pointer Tracking
+    func keyMouseEventView(
+        _ view: KeyMouseEventNSView,
+        didBegin button: KeyMouseButton,
+        at point: CGPoint,
+        time: TimeInterval
+    ) {
+        if disposition != .standard { events.append("begin") }
+    }
+
+    func keyMouseEventView(
+        _ view: KeyMouseEventNSView,
+        didDrag button: KeyMouseButton,
+        to point: CGPoint,
+        time: TimeInterval
+    ) -> KeyPointerDisposition {
+        if disposition != .standard { events.append("drag") }
+        return disposition
+    }
+
+    func keyMouseEventView(
+        _ view: KeyMouseEventNSView,
+        didEnd button: KeyMouseButton,
+        at point: CGPoint,
+        time: TimeInterval,
+        inside: Bool
+    ) {
+        events.append(inside ? "end:inside" : "end:outside")
     }
 }
